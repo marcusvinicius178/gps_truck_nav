@@ -1,0 +1,887 @@
+<sdf version='1.7'>
+  <model name='arocs_truck'>
+    <link name='base_footprint'>
+      <inertial>
+        <pose>0.987266 0 1.12626 0 -0 0</pose>
+        <mass>1108.1</mass>
+        <inertia>
+          <ixx>1493.2</ixx>
+          <ixy>8.63698e-13</ixy>
+          <ixz>-1213.3</ixz>
+          <iyy>9087.21</iyy>
+          <iyz>3.02923e-28</iyz>
+          <izz>9462.03</izz>
+        </inertia>
+      </inertial>
+      <collision name='base_footprint_fixed_joint_lump__left_lidar_link_collision'>
+        <pose>4.7025 1.674 3.5145 0.087266 -0 1.5708</pose>
+        <geometry>
+          <cylinder>
+            <length>0.075</length>
+            <radius>0.065</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__right_lidar_link_collision_1'>
+        <pose>4.7025 -1.674 3.5145 0.087266 -0 1.5708</pose>
+        <geometry>
+          <cylinder>
+            <length>0.075</length>
+            <radius>0.065</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__camera_link_collision_2'>
+        <pose>4.8925 0 2.20463 0 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.09</length>
+            <radius>0.04</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__gps_link_collision_3'>
+        <pose>3.8205 0 3.062 0 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.09</length>
+            <radius>0.08</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__first_shaft_horizontal_shaft_link_collision_4'>
+        <pose>3.302 0 0.536 -1.5708 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>2.548</length>
+            <radius>0.0536</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__fourth_shaft_horizontal_shaft_link_collision_5'>
+        <pose>-3.502 0 0.536 -1.5708 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>2.548</length>
+            <radius>0.0536</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__radar_link_collision_6'>
+        <pose>4.8025 0 1.09625 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>0.05 0.15 0.1</size>
+          </box>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__second_shaft_horizontal_shaft_link_collision_7'>
+        <pose>1.552 0 0.536 -1.5708 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>2.548</length>
+            <radius>0.0536</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__second_wheel_left_link_collision_8'>
+        <pose>1.552 1.299 0.536 1.5708 0 3.1408</pose>
+        <geometry>
+          <cylinder>
+            <length>0.385</length>
+            <radius>0.536</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__second_wheel_right_link_collision_9'>
+        <pose>1.552 -1.299 0.536 1.5708 0 3.1408</pose>
+        <geometry>
+          <cylinder>
+            <length>0.385</length>
+            <radius>0.536</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__cloud_collision_10'>
+        <pose>4.8525 0 1.09625 0 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.09</length>
+            <radius>0.08</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__third_shaft_horizontal_shaft_link_collision_11'>
+        <pose>-2.152 0 0.536 -1.5708 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>2.548</length>
+            <radius>0.0536</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__third_wheel_left_link_collision_12'>
+        <pose>-2.152 1.299 0.536 1.5708 0 3.1408</pose>
+        <geometry>
+          <cylinder>
+            <length>0.385</length>
+            <radius>0.536</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__third_wheel_right_link_collision_13'>
+        <pose>-2.152 -1.299 0.536 1.5708 0 3.1408</pose>
+        <geometry>
+          <cylinder>
+            <length>0.385</length>
+            <radius>0.536</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='base_footprint_fixed_joint_lump__base_link_visual'>
+        <pose>0 0 0.877 0 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://arocs_truck/meshes/cabine_chassi.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__cabin_link_visual_1'>
+        <pose>3.8205 0 2.095 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>1.964 2.14 1.833</size>
+          </box>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__bar_link_visual_2'>
+        <pose>4.7025 0 3.672 0 -0 1.5708</pose>
+        <geometry>
+          <box>
+            <size>3.478 0.04 0.035</size>
+          </box>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__left_lidar_link_visual_3'>
+        <pose>4.7025 1.674 3.5145 0.087266 -0 1.5708</pose>
+        <geometry>
+          <cylinder>
+            <length>0.075</length>
+            <radius>0.065</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__right_lidar_link_visual_4'>
+        <pose>4.7025 -1.674 3.5145 0.087266 -0 1.5708</pose>
+        <geometry>
+          <cylinder>
+            <length>0.075</length>
+            <radius>0.065</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__camera_link_visual_5'>
+        <pose>4.8925 0 2.20463 0 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.09</length>
+            <radius>0.04</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__gps_link_visual_6'>
+        <pose>3.8205 0 3.062 0 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.09</length>
+            <radius>0.08</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__imu_link_visual_7'>
+        <pose>3.7205 0 2.595 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>0.25 0.25 0.25</size>
+          </box>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__first_shaft_horizontal_shaft_link_visual_8'>
+        <pose>3.302 0 0.536 -1.5708 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>2.573</length>
+            <radius>0.0536</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__fourth_shaft_horizontal_shaft_link_visual_9'>
+        <pose>-3.502 0 0.536 -1.5708 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>2.573</length>
+            <radius>0.0536</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__radar_link_visual_10'>
+        <pose>4.8025 0 1.09625 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>0.05 0.15 0.1</size>
+          </box>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__second_shaft_horizontal_shaft_link_visual_11'>
+        <pose>1.552 0 0.536 -1.5708 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>2.573</length>
+            <radius>0.0536</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__second_wheel_left_link_visual_12'>
+        <pose>1.552 1.299 0.536 1.5708 0 3.1408</pose>
+        <geometry>
+          <mesh>
+            <scale>0.33 0.33 0.33</scale>
+            <uri>model://arocs_truck/meshes/roda_frontal_esquerda.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__second_wheel_right_link_visual_13'>
+        <pose>1.552 -1.299 0.536 1.5708 0 3.1408</pose>
+        <geometry>
+          <mesh>
+            <scale>0.33 0.33 0.33</scale>
+            <uri>model://arocs_truck/meshes/roda_frontal_direita.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__cloud_visual_14'>
+        <pose>4.8525 0 1.09625 0 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.09</length>
+            <radius>0.08</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__third_shaft_horizontal_shaft_link_visual_15'>
+        <pose>-2.152 0 0.536 -1.5708 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>2.573</length>
+            <radius>0.0536</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__third_wheel_left_link_visual_16'>
+        <pose>-2.152 1.299 0.536 1.5708 0 3.1408</pose>
+        <geometry>
+          <mesh>
+            <scale>0.33 0.33 0.33</scale>
+            <uri>model://arocs_truck/meshes/roda_traseira_esquerda.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__third_wheel_right_link_visual_17'>
+        <pose>-2.152 -1.299 0.536 1.5708 0 3.1408</pose>
+        <geometry>
+          <mesh>
+            <scale>0.33 0.33 0.33</scale>
+            <uri>model://arocs_truck/meshes/roda_traseira_direita.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <sensor name='left_lidar' type='ray'>
+        <always_on>1</always_on>
+        <visualize>1</visualize>
+        <update_rate>10</update_rate>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>360</samples>
+              <resolution>1</resolution>
+              <min_angle>0</min_angle>
+              <max_angle>6.28</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.12</min>
+            <max>100</max>
+            <resolution>0.015</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <plugin name='left_lidar_scan' filename='libgazebo_ros_ray_sensor.so'>
+          <ros>
+            <remapping>~/out:=left_scan</remapping>
+          </ros>
+          <output_type>sensor_msgs/LaserScan</output_type>
+          <frame_name>left_lidar_link</frame_name>
+        </plugin>
+        <pose>4.7025 1.674 3.5145 0.087266 0 1.5708</pose>
+      </sensor>
+      <sensor name='right_lidar' type='ray'>
+        <always_on>1</always_on>
+        <visualize>1</visualize>
+        <update_rate>10</update_rate>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>360</samples>
+              <resolution>1</resolution>
+              <min_angle>0</min_angle>
+              <max_angle>6.28</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.12</min>
+            <max>100</max>
+            <resolution>0.015</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <plugin name='right_lidar_scan' filename='libgazebo_ros_ray_sensor.so'>
+          <ros>
+            <remapping>~/out:=right_scan</remapping>
+          </ros>
+          <output_type>sensor_msgs/LaserScan</output_type>
+          <frame_name>right_lidar_link</frame_name>
+        </plugin>
+        <pose>4.7025 -1.674 3.5145 0.087266 0 1.5708</pose>
+      </sensor>
+      <sensor name='camera' type='camera'>
+        <visualize>1</visualize>
+        <update_rate>30</update_rate>
+        <camera name='head'>
+          <horizontal_fov>1.0472</horizontal_fov>
+          <image>
+            <width>800</width>
+            <height>800</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>300</far>
+          </clip>
+          <noise>
+            <type>gaussian</type>
+            <mean>0</mean>
+            <stddev>0.007</stddev>
+          </noise>
+        </camera>
+        <plugin name='camera_controller' filename='libgazebo_ros_camera.so'>
+          <alwaysOn>1</alwaysOn>
+          <updateRate>0.0</updateRate>
+          <cameraName>/flir/camera</cameraName>
+          <imageTopicName>image_raw</imageTopicName>
+          <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+          <frame_name>camera</frame_name>
+          <hackBaseline>0.07</hackBaseline>
+          <distortionK1>0.0</distortionK1>
+          <distortionK2>0.0</distortionK2>
+          <distortionK3>0.0</distortionK3>
+          <distortionT1>0.0</distortionT1>
+          <distortionT2>0.0</distortionT2>
+        </plugin>
+        <pose>4.8925 0 2.20463 0 0 -0</pose>
+      </sensor>
+      <sensor name='arocs_gps' type='gps'>
+        <always_on>1</always_on>
+        <update_rate>1</update_rate>
+        <plugin name='gps_plugin' filename='libgazebo_ros_gps_sensor.so'>
+          <ros>
+            <namespace>/gps</namespace>
+            <remapping>~/out:=fix</remapping>
+            <remapping>~/out:=data</remapping>
+            <remapping>~/vel:=velocity</remapping>
+          </ros>
+        </plugin>
+        <pose>3.8205 0 3.062 0 -0 0</pose>
+      </sensor>
+      <sensor name='imu_sensor' type='imu'>
+        <plugin name='imu_plugin' filename='libgazebo_ros_imu_sensor.so'>
+          <ros>
+            <remapping>~/out:=imu</remapping>
+          </ros>
+          <initial_orientation_as_reference>0</initial_orientation_as_reference>
+        </plugin>
+        <always_on>1</always_on>
+        <update_rate>200</update_rate>
+        <visualize>1</visualize>
+        <imu>
+          <angular_velocity>
+            <x>
+              <noise type='gaussian'>
+                <mean>0</mean>
+                <stddev>0.0002</stddev>
+                <bias_mean>7.5e-06</bias_mean>
+                <bias_stddev>8e-07</bias_stddev>
+              </noise>
+            </x>
+            <y>
+              <noise type='gaussian'>
+                <mean>0</mean>
+                <stddev>0.0002</stddev>
+                <bias_mean>7.5e-06</bias_mean>
+                <bias_stddev>8e-07</bias_stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type='gaussian'>
+                <mean>0</mean>
+                <stddev>0.0002</stddev>
+                <bias_mean>7.5e-06</bias_mean>
+                <bias_stddev>8e-07</bias_stddev>
+              </noise>
+            </z>
+          </angular_velocity>
+          <linear_acceleration>
+            <x>
+              <noise type='gaussian'>
+                <mean>0</mean>
+                <stddev>0.017</stddev>
+                <bias_mean>0.1</bias_mean>
+                <bias_stddev>0.001</bias_stddev>
+              </noise>
+            </x>
+            <y>
+              <noise type='gaussian'>
+                <mean>0</mean>
+                <stddev>0.017</stddev>
+                <bias_mean>0.1</bias_mean>
+                <bias_stddev>0.001</bias_stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type='gaussian'>
+                <mean>0</mean>
+                <stddev>0.017</stddev>
+                <bias_mean>0.1</bias_mean>
+                <bias_stddev>0.001</bias_stddev>
+              </noise>
+            </z>
+          </linear_acceleration>
+        </imu>
+        <pose>3.7205 0 2.595 0 -0 0</pose>
+      </sensor>
+      <sensor name='sick_lidar' type='ray'>
+        <always_on>1</always_on>
+        <visualize>1</visualize>
+        <update_rate>10</update_rate>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>360</samples>
+              <resolution>1</resolution>
+              <min_angle>-1.5708</min_angle>
+              <max_angle>1.5708</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.12</min>
+            <max>40</max>
+            <resolution>0.01</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <plugin name='scan_link_lidar' filename='libgazebo_ros_ray_sensor.so'>
+          <ros>
+            <remapping>~/out:=/sick_scan_2D</remapping>
+          </ros>
+          <output_type>sensor_msgs/LaserScan</output_type>
+          <frame_name>cloud</frame_name>
+        </plugin>
+        <pose>4.8525 0 1.09625 0 -0 0</pose>
+      </sensor>
+    </link>
+    <joint name='front_left_steer_joint' type='revolute'>
+      <pose relative_to='base_footprint'>3.302 1.299 0.535 0 -0 1.5708</pose>
+      <parent>base_footprint</parent>
+      <child>front_left_steering_link</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-0.524</lower>
+          <upper>0.524</upper>
+          <effort>1e+07</effort>
+          <velocity>1e+06</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='front_left_steering_link'>
+      <pose relative_to='front_left_steer_joint'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>2</mass>
+        <inertia>
+          <ixx>0.0116667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0116667</iyy>
+          <iyz>0</iyz>
+          <izz>0.01</izz>
+        </inertia>
+      </inertial>
+      <collision name='front_left_steering_link_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.2</length>
+            <radius>0.1</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='front_left_steering_link_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.2</length>
+            <radius>0.1</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+    </link>
+    <joint name='first_wheel_left_joint' type='revolute'>
+      <pose relative_to='front_left_steering_link'>0 0 0 0 -0 1.57</pose>
+      <parent>front_left_steering_link</parent>
+      <child>first_wheel_left_link</child>
+      <axis>
+        <xyz>0 -1 0</xyz>
+        <limit>
+          <lower>-1e+16</lower>
+          <upper>1e+16</upper>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='first_wheel_left_link'>
+      <pose relative_to='first_wheel_left_joint'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>74</mass>
+        <inertia>
+          <ixx>10.63</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>10.63</iyy>
+          <iyz>0</iyz>
+          <izz>21.2599</izz>
+        </inertia>
+      </inertial>
+      <collision name='first_wheel_left_link_collision'>
+        <pose>0 0 0 1.5708 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.385</length>
+            <radius>0.536</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='first_wheel_left_link_visual'>
+        <pose>0 0 0 1.5708 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.33 0.33 0.33</scale>
+            <uri>model://arocs_truck/meshes/roda_frontal_esquerda.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+    </link>
+    <joint name='front_right_steer_joint' type='revolute'>
+      <pose relative_to='base_footprint'>3.302 -1.299 0.535 0 -0 1.5708</pose>
+      <parent>base_footprint</parent>
+      <child>front_right_steering_link</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-0.524</lower>
+          <upper>0.524</upper>
+          <effort>1e+07</effort>
+          <velocity>1e+06</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='front_right_steering_link'>
+      <pose relative_to='front_right_steer_joint'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>2</mass>
+        <inertia>
+          <ixx>0.0116667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0116667</iyy>
+          <iyz>0</iyz>
+          <izz>0.01</izz>
+        </inertia>
+      </inertial>
+      <collision name='front_right_steering_link_collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.2</length>
+            <radius>0.1</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='front_right_steering_link_visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.2</length>
+            <radius>0.1</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+    </link>
+    <joint name='first_wheel_right_joint' type='revolute'>
+      <pose relative_to='front_right_steering_link'>0 -0.025 0 0 -0 1.57</pose>
+      <parent>front_right_steering_link</parent>
+      <child>first_wheel_right_link</child>
+      <axis>
+        <xyz>0 -1 0</xyz>
+        <limit>
+          <lower>-1e+16</lower>
+          <upper>1e+16</upper>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='first_wheel_right_link'>
+      <pose relative_to='first_wheel_right_joint'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>74</mass>
+        <inertia>
+          <ixx>10.63</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>10.63</iyy>
+          <iyz>0</iyz>
+          <izz>21.2599</izz>
+        </inertia>
+      </inertial>
+      <collision name='first_wheel_right_link_collision'>
+        <pose>0 0 0 1.5708 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.385</length>
+            <radius>0.536</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='first_wheel_right_link_visual'>
+        <pose>0 0 0 1.5708 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.33 0.33 0.33</scale>
+            <uri>model://arocs_truck/meshes/roda_frontal_direita.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+    </link>
+    <joint name='fourth_wheel_left_joint' type='revolute'>
+      <pose relative_to='base_footprint'>-3.502 1.299 0.536 0 -0 3.1408</pose>
+      <parent>base_footprint</parent>
+      <child>fourth_wheel_left_link</child>
+      <axis>
+        <xyz>0 -1 0</xyz>
+        <limit>
+          <lower>-1e+16</lower>
+          <upper>1e+16</upper>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='fourth_wheel_left_link'>
+      <pose relative_to='fourth_wheel_left_joint'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>74</mass>
+        <inertia>
+          <ixx>10.63</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>10.63</iyy>
+          <iyz>0</iyz>
+          <izz>21.2599</izz>
+        </inertia>
+      </inertial>
+      <collision name='fourth_wheel_left_link_collision'>
+        <pose>0 0 0 1.5708 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.385</length>
+            <radius>0.536</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='fourth_wheel_left_link_visual'>
+        <pose>0 0 0 1.5708 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.33 0.33 0.33</scale>
+            <uri>model://arocs_truck/meshes/roda_traseira_esquerda.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+    </link>
+    <joint name='fourth_wheel_right_joint' type='revolute'>
+      <pose relative_to='base_footprint'>-3.502 -1.299 0.536 0 -0 3.1408</pose>
+      <parent>base_footprint</parent>
+      <child>fourth_wheel_right_link</child>
+      <axis>
+        <xyz>0 -1 0</xyz>
+        <limit>
+          <lower>-1e+16</lower>
+          <upper>1e+16</upper>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='fourth_wheel_right_link'>
+      <pose relative_to='fourth_wheel_right_joint'>0 0 0 0 -0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 -0 0</pose>
+        <mass>74</mass>
+        <inertia>
+          <ixx>10.63</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>10.63</iyy>
+          <iyz>0</iyz>
+          <izz>21.2599</izz>
+        </inertia>
+      </inertial>
+      <collision name='fourth_wheel_right_link_collision'>
+        <pose>0 0 0 1.5708 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.385</length>
+            <radius>0.536</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='fourth_wheel_right_link_visual'>
+        <pose>0 0 0 1.5708 -0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.33 0.33 0.33</scale>
+            <uri>model://arocs_truck/meshes/roda_traseira_direita.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+    </link>
+    <plugin name='ackermann_drive' filename='libgazebo_ros_ackermann_drive.so'>
+      <ros>
+        <parameter name='cmd_vel_topic' value='cmd_vel'/>
+        <parameter name='odom_topic' value='odom'/>
+        <parameter name='distance_topic' value='distance'/>
+      </ros>
+      <update_rate>30.0</update_rate>
+      <front_left_joint>first_wheel_left_joint</front_left_joint>
+      <front_right_joint>first_wheel_right_joint</front_right_joint>
+      <rear_left_joint>fourth_wheel_left_joint</rear_left_joint>
+      <rear_right_joint>fourth_wheel_right_joint</rear_right_joint>
+      <left_steering_joint>front_left_steer_joint</left_steering_joint>
+      <right_steering_joint>front_right_steer_joint</right_steering_joint>
+      <max_steer>0.6458</max_steer>
+      <max_steering_angle>7.85</max_steering_angle>
+      <max_speed>20</max_speed>
+      <left_steering_pid_gain>1700 0 1</left_steering_pid_gain>
+      <left_steering_i_range>0 0</left_steering_i_range>
+      <right_steering_pid_gain>1700 0 1</right_steering_pid_gain>
+      <right_steering_i_range>0 0</right_steering_i_range>
+      <linear_velocity_pid_gain>1700 0 1</linear_velocity_pid_gain>
+      <linear_velocity_i_range>0 0</linear_velocity_i_range>
+      <publish_odom>1</publish_odom>
+      <publish_odom_tf>1</publish_odom_tf>
+      <publish_wheel_tf>1</publish_wheel_tf>
+      <publish_distance>1</publish_distance>
+      <odometry_frame>odom</odometry_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+    </plugin>
+    <static>0</static>
+    <plugin name='truck_joint_state' filename='libgazebo_ros_joint_state_publisher.so'>
+      <ros>
+        <remapping>~/out:=joint_states</remapping>
+      </ros>
+      <update_rate>30</update_rate>
+      <joint_name>front_right_steer_joint</joint_name>
+      <joint_name>front_left_steer_joint</joint_name>
+      <joint_name>first_wheel_left_joint</joint_name>
+      <joint_name>first_wheel_right_joint</joint_name>
+      <joint_name>fourth_wheel_left_joint</joint_name>
+      <joint_name>fourth_wheel_right_joint</joint_name>
+    </plugin>
+  </model>
+</sdf>

@@ -1,0 +1,5 @@
+repositories:
+  navigation2:
+    type: git
+    url: git@github.com:marcusvinicius178/navigation2-private.git
+    version: iron-truck

@@ -1,0 +1,23 @@
+navsat_transform_node:
+  ros__parameters:
+    use_sim_time: true
+    magnetic_declination_radians: 0.266512 # Calculated using this tutorial https://automaticaddison.com/how-to-use-gps-with-the-robot-localization-package-ros-2/#google_vignette
+    yaw_offset: 0.0 # If the Arocs IMU be oriented to north instead the standard East, must rotate -pi/2
+    zero_altitude: true
+    #broadcast_utm_transform: true #deprecated 
+    broadcast_cartesian_transform: true
+    wait_for_datum: true
+     #When getting REAL GPS ARocs data set to true to track the real vehicle position
+    use_manual_datum: false # provide origin (lat,long) IS NOT WORKING! Just using script or ros2 service call datum...
+    #comment if not use a pre-defined lat/long. Uncomment row below if use a desired lat/long as origin
+    # datum_lat: 2.128798859708342e-06
+    # datum_lon: -0.00014941925414188134
+    # datum_alt: 3.063041073270142
+    frequency: 30.0
+    publish_filtered_gps: true
+    #The parameters below set to FALSE enable the raw imu/data be subscribed 
+    use_odometry_yaw: false
+    #broadcast_utm_transform_as_parent_frame: true
+    delay: 3.0
+
+
