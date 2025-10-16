@@ -1,0 +1,28 @@
+services:
+  nav2_sim:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: "0:0"                              # 1ª subida como root para ajustar permissões
+    entrypoint: ["/entrypoint.sh"]
+    command: ["bash","-lc","sleep infinity"] # mantém o container vivo
+    tty: true
+    stdin_open: true
+    environment:
+      - ROS_DISTRO=iron
+      - ROSDEP_AUTO_INSTALL=1                # instala build/exec/test_depend de /ws/src
+      - BUILD_GZ_CLASSIC=1
+    volumes:
+      - ./src:/ws/src:rw
+      - build_nav2:/ws/build
+      - install_nav2:/ws/install
+      - log_nav2:/ws/log
+      - ./entrypoint.sh:/entrypoint.sh:ro
+
+volumes:
+  build_nav2:
+    name: nav_gps_ws_build_nav2
+  install_nav2:
+    name: nav_gps_ws_install_nav2
+  log_nav2:
+    name: nav_gps_ws_log_nav2
