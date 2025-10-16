@@ -3,21 +3,25 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    user: "0:0"                              # 1ª subida como root para ajustar permissões
+    user: "0:0"
     entrypoint: ["/entrypoint.sh"]
-    command: ["bash","-lc","sleep infinity"] # mantém o container vivo
+    command: ["bash","-lc","sleep infinity"]
     tty: true
     stdin_open: true
     environment:
       - ROS_DISTRO=iron
-      - ROSDEP_AUTO_INSTALL=1                # instala build/exec/test_depend de /ws/src
+      - ROSDEP_AUTO_INSTALL=1
       - BUILD_GZ_CLASSIC=1
+      # ---- X11 opcional (só funciona se você exportar DISPLAY no host) ----
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
     volumes:
       - ./src:/ws/src:rw
       - build_nav2:/ws/build
       - install_nav2:/ws/install
       - log_nav2:/ws/log
-      - ./entrypoint.sh:/entrypoint.sh:ro
+      # Socket X11 (opcional; se não tiver DISPLAY, pode deixar mesmo assim)
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
 
 volumes:
   build_nav2:
