@@ -10,66 +10,76 @@ import os
 def generate_launch_description():
     bringup_dir = get_package_share_directory('truck_bringup')
 
-    # === Mundo (ajuste aqui se quiser outro .world) ===
+    # === Mundo ===
     world_file = os.path.join(bringup_dir, 'worlds', 'empty_ground.world')
 
+    # RViz opcional: mantido aqui como no seu arquivo original
     rviz_config_file = os.path.join(bringup_dir, 'rviz', 'truck.rviz')
-    truck_urdf_file = os.path.join(bringup_dir, 'urdf', 'arocs_truck.urdf')
 
+    # URDF (publicado para TF/visualização)
+    truck_urdf_file = os.path.join(bringup_dir, 'urdf', 'arocs_truck.urdf')
     with open(truck_urdf_file, 'r') as urdf_file:
         robot_description_content = urdf_file.read()
 
-    # === Evitar travas: env para Gazebo/Qt/OpenGL ===
+    # === Paths Gazebo/OGRE ===
+    truck_models_dir    = os.path.join(bringup_dir, 'models')
+    gazebo_models_dir   = '/usr/share/gazebo-11/models'   # <- inclui ground_plane e sun
+    gazebo_share_dir    = '/usr/share/gazebo-11'
+
+    # MODEL PATH: inclui seus modelos + modelos nativos
     set_gazebo_model_path = SetEnvironmentVariable(
         name='GAZEBO_MODEL_PATH',
         value=[
-            os.path.join(bringup_dir, 'models'),
+            truck_models_dir,
+            os.pathsep,
+            gazebo_models_dir,
             os.pathsep,
             EnvironmentVariable('GAZEBO_MODEL_PATH', default_value='')
         ]
     )
 
-    # Worlds, media, materials etc.
+    # RESOURCE PATH: inclui diretório share do Gazebo (worlds, media, shaders, etc.)
     set_gazebo_resource_path = SetEnvironmentVariable(
         name='GAZEBO_RESOURCE_PATH',
         value=[
+            gazebo_share_dir,
+            os.pathsep,
             os.path.join(bringup_dir, 'worlds'),
             os.pathsep,
             EnvironmentVariable('GAZEBO_RESOURCE_PATH', default_value='')
         ]
     )
 
-    # BLOQUEIA consultas à model database online (fonte comum de travas)
+    # BLOQUEIA consultas à model database online (evita travas)
     disable_model_db = SetEnvironmentVariable(
         name='GAZEBO_MODEL_DATABASE_URI',
         value=''
     )
 
-    # Qt/Wayland/GL: integração mais estável em muitos desktops
+    # Qt/Wayland/GL: integração estável
     set_qt_gl_integration = SetEnvironmentVariable(
         name='QT_XCB_GL_INTEGRATION',
         value='none'
     )
 
-    # Se ainda travar, DESCOMENTE abaixo para render por software (mais lento, mas à prova de driver):
-    # force_sw_render = SetEnvironmentVariable(name='LIBGL_ALWAYS_SOFTWARE', value='1')
-
+    # --- Processos Gazebo ---
     start_gazebo_server_cmd = ExecuteProcess(
         cmd=['gzserver', '--verbose', world_file, '-s', 'libgazebo_ros_init.so'],
         output='screen'
     )
 
-    # Sobe o cliente com logs verbosos para capturar erros OGRE/GL
     start_gazebo_client_cmd = ExecuteProcess(
         cmd=['gzclient', '--verbose'],
         output='screen'
     )
 
+    # RViz opcional (mantido)
     start_rviz_cmd = ExecuteProcess(
         cmd=['rviz2', '-d', rviz_config_file],
         output='screen'
     )
 
+    # Publica o URDF para TF/RViz (não faz spawn; o spawn vem do <include> no .world)
     robot_state_publisher_cmd = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
@@ -83,7 +93,7 @@ def generate_launch_description():
         set_gazebo_resource_path,
         disable_model_db,
         set_qt_gl_integration,
-        # force_sw_render,  # <-- descomente só se necessário
+
         start_gazebo_server_cmd,
         start_gazebo_client_cmd,
         start_rviz_cmd,

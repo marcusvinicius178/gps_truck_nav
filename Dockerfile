@@ -74,6 +74,18 @@ RUN echo 'source /opt/ros/${ROS_DISTRO}/setup.bash 2>/dev/null || true' > /etc/p
     chmod +x /etc/profile.d/ros_setup.sh && \
     echo 'source /etc/profile.d/ros_setup.sh' >> /etc/bash.bashrc
 
+# ------------------------------------------------------------------
+# >>>>>>> ACRÉSCIMO MINIMAL PARA MODELOS DO GAZEBO <<<<<<<
+#  - Desativa a Fuel (offline)
+#  - Paths padrão do Gazebo (modelos/worlds) ficam prontos de fábrica
+#  - OGRE opcional (ajuda alguns ambientes)
+# ------------------------------------------------------------------
+ENV GAZEBO_MODEL_DATABASE_URI=""
+ENV GAZEBO_MODEL_PATH="/usr/share/gazebo-11/models"
+ENV GAZEBO_RESOURCE_PATH="/usr/share/gazebo-11:/usr/share/gazebo-11/worlds"
+# (opcional) OGRE RTShaderLib em algumas distros
+ENV OGRE_RESOURCE_PATH="/usr/lib/x86_64-linux-gnu/OGRE-1.9.0"
+
 # Usuário e workspace
 RUN groupadd --gid 1000 ros || true && \
     useradd  --uid 1000 --gid 1000 --create-home --shell /bin/bash ros || true
@@ -82,3 +94,7 @@ WORKDIR /ws
 # Entrypoint (fica dentro da imagem com +x)
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# default
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash","-lc","sleep infinity"]

@@ -76,7 +76,7 @@ def generate_launch_description():
 
     declare_set_gz_paths_cmd = DeclareLaunchArgument(
         'set_gz_paths', default_value='True',
-        description='Set GAZEBO_MODEL_PATH/RESOURCE_PATH/OGRE_RESOURCE_PATH')
+        description='Set GAZEBO paths (MODEL/RESOURCE/OGRE)')
 
     # ====== AJUSTES DE AMBIENTE (aplicam-se a TODOS os processos do launch) ======
 
@@ -86,39 +86,36 @@ def generate_launch_description():
         SetEnvironmentVariable('__GLX_VENDOR_LIBRARY_NAME',  'nvidia', condition=IfCondition(use_gpu)),
     ]
 
-    # 2) Evita o backend Wayland (o Gazebo 11/OGRE+Qt trava com frequência no Wayland)
+    # 2) Evita o backend Wayland (o Gazebo 11/OGRE+Qt costuma travar no Wayland)
     set_xcb_env = [
         SetEnvironmentVariable('QT_QPA_PLATFORM', 'xcb', condition=IfCondition(use_xcb)),
     ]
 
-    # 3) Usa modelos locais e NÃO tenta baixar do Fuel (evita "Waiting for model database...")
+    # 3) Usa modelos locais e NÃO tenta baixar do Fuel
     set_models_env = [
         SetEnvironmentVariable('GAZEBO_MODEL_DATABASE_URI', '', condition=IfCondition(use_local_models)),
     ]
 
     # 4) Paths do Gazebo e OGRE
-    #    * GAZEBO_MODEL_PATH: onde está seu "models/" do pacote
-    #    * GAZEBO_RESOURCE_PATH: shaders, materials etc do Gazebo
-    #    * OGRE_RESOURCE_PATH: RTShaderLib e demais assets do OGRE (ajuste se sua distro usar outro caminho)
-    models_dir = os.path.join(bringup_dir, 'models')
-    # Caminhos típicos no Ubuntu 22.04 com Gazebo 11 e OGRE 1.9:
-    gazebo_share_guess = '/usr/share/gazebo-11'
-    ogre_share_guess   = '/usr/lib/x86_64-linux-gnu/OGRE-1.9.0'
+    models_dir        = os.path.join(bringup_dir, 'models')
+    gazebo_models_dir = '/usr/share/gazebo-11/models'         # <- modelos nativos (ground_plane, sun, etc.)
+    gazebo_share_dir  = '/usr/share/gazebo-11'
+    ogre_share_dir    = '/usr/lib/x86_64-linux-gnu/OGRE-1.9.0'
 
     set_paths_env = [
         SetEnvironmentVariable(
             'GAZEBO_MODEL_PATH',
-            f'{models_dir}:{os.environ.get("GAZEBO_MODEL_PATH", "")}',
+            f'{models_dir}:{gazebo_models_dir}:{os.environ.get("GAZEBO_MODEL_PATH", "")}',
             condition=IfCondition(set_gz_paths)
         ),
         SetEnvironmentVariable(
             'GAZEBO_RESOURCE_PATH',
-            f'{gazebo_share_guess}:{os.environ.get("GAZEBO_RESOURCE_PATH", "")}',
+            f'{gazebo_share_dir}:{os.environ.get("GAZEBO_RESOURCE_PATH", "")}',
             condition=IfCondition(set_gz_paths)
         ),
         SetEnvironmentVariable(
             'OGRE_RESOURCE_PATH',
-            f'{ogre_share_guess}:{os.environ.get("OGRE_RESOURCE_PATH", "")}',
+            f'{ogre_share_dir}:{os.environ.get("OGRE_RESOURCE_PATH", "")}',
             condition=IfCondition(set_gz_paths)
         ),
     ]
@@ -196,7 +193,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    # ====== ORDEM IMPORTA: primeiro os envs, depois os includes/nodes ======
+    # ====== ORDEM IMPORTA ======
     return LaunchDescription([
         # Declarações
         declare_use_sim_time_cmd,
@@ -210,7 +207,7 @@ def generate_launch_description():
         declare_use_local_models_cmd,
         declare_set_gz_paths_cmd,
 
-        # Envs globais (aplicam-se a tudo abaixo)
+        # Envs globais
         *set_gpu_env,
         *set_xcb_env,
         *set_models_env,
