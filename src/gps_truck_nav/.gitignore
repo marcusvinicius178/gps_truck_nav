@@ -1,0 +1,10 @@
+build/
+install/
+log/
+.colcon/
+**/__pycache__/
+**/*.pyc
+.DS_Store
+.vscode/
+.idea/
+truck_bringup/bing_key.txt

@@ -1,0 +1,32 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <model name="ctvi_plane">
+    <static>true</static>
+    <link name="link">
+      <visual name="terrain_visual">
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>700 700</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://ctvi/materials/scripts</uri>
+            <uri>model://ctvi/materials/textures</uri>
+            <name>MyTerrainMaterial</name>
+          </script>
+        </material>
+      </visual>
+      <collision name="plane_collision">
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>700 700</size>
+          </plane>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>
+

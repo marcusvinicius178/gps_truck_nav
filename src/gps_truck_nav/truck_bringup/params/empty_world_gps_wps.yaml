@@ -1,0 +1,10 @@
+waypoints:
+# - latitude: 38.16149888747468
+#   longitude: -122.45441473107142
+#   yaw: 0.013853988010199991
+# - latitude: 38.161520
+#   longitude: -122.453340
+#   yaw: 0.01
+- latitude: 38.161520
+  longitude: -122.45270
+  yaw: 0.01

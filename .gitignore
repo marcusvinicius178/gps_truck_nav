@@ -1,6 +1,7 @@
 build/
 install/
 log/
+<<<<<<< HEAD
 .colcon/
 **/__pycache__/
 **/*.pyc
@@ -8,3 +9,19 @@ log/
 .vscode/
 .idea/
 truck_bringup/bing_key.txt
+=======
+
+# editores / temporários
+*.swp
+*.swo
+*.pyc
+__pycache__/
+.DS_Store
+.vscode/
+
+# terceiros (se não quiser versionar)
+src/navigation2/
+src/offroad_sim/
+src/rviz2_plugin_ser2res/
+src/bcr_teleop/
+>>>>>>> 654a911 (Fix: remover submódulo acidental e versionar src/gps_truck_nav como diretório normal)

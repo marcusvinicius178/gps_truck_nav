@@ -1,0 +1,22 @@
+repositories:
+  navigation2:
+    type: git
+    url: git@github.com:marcusvinicius178/navigation2-private.git
+    version: iron-truck
+
+  rviz2_plugin_ser2res:
+    type: git
+    url: https://github.com/ASIG-X/rviz2_plugin_ser2res.git
+    version: main
+
+  bcr_teleop:
+    type: git
+    url: https://github.com/blackcoffeerobotics/bcr_teleop.git
+    version: ros2
+
+
+  bcr_teleop:
+    type: git
+    url: https://github.com/marcusvinicius178/offroad_sim.git
+    version: master
+
