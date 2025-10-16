@@ -11,3 +11,8 @@ truck_bringup/bing_key.txt
 
 # Ignorar modelos 3D pesados já no working tree
 src/gps_truck_nav/truck_bringup/models/arocs_truck/meshes/
+# terceiros (não versionar)
+src/navigation2/
+src/offroad_sim/
+src/rviz2_plugin_ser2res/
+src/bcr_teleop/
