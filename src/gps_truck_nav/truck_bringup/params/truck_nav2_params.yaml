@@ -118,7 +118,7 @@ local_costmap:
           data_type: "PointCloud2"
           obstacle_max_range: 50.0
           obstacle_min_range: 0.0
-          inf_is_valid: true
+          inf_is_valid: false
 
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
@@ -140,8 +140,8 @@ local_costmap:
           raytrace_min_range: 0.0
           obstacle_max_range: 40.0
           obstacle_min_range: 0.0
-          marking_threshold: 100 # THIS SET ZONES AS LETHAL OBSTACLES
-          inf_is_valid: true
+          marking_threshold: 0 # THIS SET ZONES AS LETHAL OBSTACLES if = 100
+          inf_is_valid: false
         # virtual_wall_scan:
         #   topic: /virtual_wall_scan
         #   max_obstacle_height: 2.0
@@ -343,8 +343,8 @@ global_costmap:
           raytrace_min_range: 0.0
           obstacle_max_range: 40.0
           obstacle_min_range: 1.0
-          marking_threshold: 100 # THIS SET ZONES AS LETHAL OBSTACLES
-          inf_is_valid: true
+          marking_threshold: 0 # THIS SET ZONES AS LETHAL OBSTACLES
+          inf_is_valid: false
           clear_on_max_reading: true
         # virtual_wall_scan:
         #   topic: /virtual_wall_scan
@@ -367,7 +367,7 @@ global_costmap:
           data_type: "PointCloud2"
           obstacle_max_range: 50.0
           obstacle_min_range: 0.0
-          inf_is_valid: true
+          inf_is_valid: false
 
 
           
