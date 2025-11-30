@@ -1,0 +1,10 @@
+<library path="nav_virtual_lanes_planner">
+  <class
+    name="nav_virtual_lanes_planner/VirtualLanesPlanner"
+    type="nav_virtual_lanes_planner::VirtualLanesPlanner"
+    base_class_type="nav2_core::GlobalPlanner">
+    <description>
+      Global planner that follows a virtual lane from a Marker LINE_STRIP.
+    </description>
+  </class>
+</library>
