@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>nav_virtual_lanes_planner</name>
+  <version>0.0.0</version>
+  <description>Virtual lanes global planner for agricultural truck</description>
+  <maintainer email="user@todo.todo">user</maintainer>
+  <license>TODO: License declaration</license>
+
+  <!-- Tipo de build: ament_cmake -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Dependências em tempo de build e execução -->
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>nav2_core</depend>
+  <depend>nav2_util</depend>
+  <depend>nav2_costmap_2d</depend>
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>pluginlib</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+
+  <export>
+    <!-- Diz ao ecossistema que este pacote é ament_cmake -->
+    <build_type>ament_cmake</build_type>
+
+    <!-- Registra o plugin do planner no nav2_core -->
+    <nav2_core plugin="${prefix}/virtual_lanes_planner.xml"/>
+  </export>
+</package>
