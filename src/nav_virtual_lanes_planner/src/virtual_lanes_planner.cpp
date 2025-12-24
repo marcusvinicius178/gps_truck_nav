@@ -164,7 +164,13 @@ void VirtualLanesPlanner::handleMarker(
   converted.reserve(msg->points.size());
 
   geometry_msgs::msg::PoseStamped base_pose;
-  base_pose.header = msg->header;
+  // IMPORTANT (timestamps): the marker publisher may not use simulated time (/clock)
+  // and can publish wall-time timestamps. If we copy those timestamps into the path,
+  // Nav2 will later try to transform poses at epoch time while TF is in sim time,
+  // resulting in: "Transform data too old when converting from map to odom".
+  // Therefore, we deliberately override the stamp with this node's time.
+  base_pose.header.frame_id = msg->header.frame_id;
+  base_pose.header.stamp = node_->now();
   base_pose.pose = msg->pose;
 
   for (const auto & p : msg->points) {
@@ -354,6 +360,38 @@ nav_msgs::msg::Path VirtualLanesPlanner::createPlan(
     path.poses.front() = start_global;
     path.poses.back() = goal_global;
   }
+
+  // IMPORTANT (timestamps / frame_id):
+  // Ensure every pose in the Path is stamped consistently with the planner's clock.
+  // If any pose keeps an "epoch" timestamp (e.g., copied from a marker publisher
+  // not using /clock), Nav2 will request TF at that time and trigger:
+  //   "Transform data too old when converting from map to odom"
+  // which then causes the controller loop to miss its desired rate and the robot never moves.
+  for (auto & ps : path.poses) {
+    ps.header.frame_id = global_frame_;
+    ps.header.stamp = path.header.stamp;
+  }
+
+  // -------------------------------------------------------------------------
+  // Ajusta as orientações intermediárias para seguirem a direcção do percurso.
+  // Sem isto, todas as poses herdam a orientação do Marker (geralmente neutra),
+  // e o controlador local acumula um custo enorme em PathAngleCritic.
+  // Atribuímos um yaw à pose i de acordo com o vector para a pose i+1.
+  {
+    auto & poses = path.poses;
+    if (poses.size() >= 2) {
+      for (size_t i = 0; i + 1 < poses.size(); ++i) {
+        const auto & p0 = poses[i].pose.position;
+        const auto & p1 = poses[i + 1].pose.position;
+        const double dx = p1.x - p0.x;
+        const double dy = p1.y - p0.y;
+        const double yaw = std::atan2(dy, dx);
+        poses[i].pose.orientation = yawToQuat(yaw);
+      }
+      poses.back().pose.orientation = poses[poses.size() - 2].pose.orientation;
+    }
+  }
+  // -------------------------------------------------------------------------
 
   return path;
 }
