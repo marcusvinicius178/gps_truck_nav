@@ -1,6 +1,7 @@
 #include "nav_virtual_lanes_planner/virtual_lanes_planner.hpp"
 
 #include <cmath>
+#include <limits>
 
 #include "pluginlib/class_list_macros.hpp"
 #include "nav2_util/node_utils.hpp"
@@ -34,12 +35,17 @@ geometry_msgs::msg::Quaternion yawToQuat(double yaw)
   return q_msg;
 }
 
+inline bool isZeroStamp(const builtin_interfaces::msg::Time & t)
+{
+  return (t.sec == 0 && t.nanosec == 0u);
+}
+
 }  // namespace
 
 VirtualLanesPlanner::VirtualLanesPlanner()
 : logger_(rclcpp::get_logger("VirtualLanesPlanner")),
-  resample_distance_(2.0),
-  lane_id_(1)   // por padrão, faixa central (id = 1 no seu script)
+  resample_distance_(0.25),   // bem mais denso por default
+  lane_id_(1)
 {
 }
 
@@ -62,11 +68,8 @@ void VirtualLanesPlanner::configure(
   global_frame_ = costmap_ros_->getGlobalFrameID();
   logger_ = node_->get_logger();
 
-  RCLCPP_INFO(
-    logger_,
-    "VirtualLanesPlanner: configuring with global frame '%s'", global_frame_.c_str());
+  RCLCPP_INFO(logger_, "VirtualLanesPlanner: configuring. global_frame='%s'", global_frame_.c_str());
 
-  // parâmetros
   nav2_util::declare_parameter_if_not_declared(
     node_, name_ + ".lane_marker_topic",
     rclcpp::ParameterValue(std::string("visualization_marker")));
@@ -77,9 +80,8 @@ void VirtualLanesPlanner::configure(
 
   nav2_util::declare_parameter_if_not_declared(
     node_, name_ + ".resample_distance",
-    rclcpp::ParameterValue(2.0));
+    rclcpp::ParameterValue(0.25));
 
-  // novo parâmetro: qual id de faixa usar
   nav2_util::declare_parameter_if_not_declared(
     node_, name_ + ".lane_id",
     rclcpp::ParameterValue(1));
@@ -91,10 +93,10 @@ void VirtualLanesPlanner::configure(
 
   RCLCPP_INFO(
     logger_,
-    "VirtualLanesPlanner: listening markers on topic '%s', namespace '%s', resample_distance=%.2f, lane_id=%d",
-    lane_marker_topic_.c_str(), lane_marker_namespace_.c_str(), resample_distance_, lane_id_);
+    "VirtualLanesPlanner: topic='%s', ns='%s', lane_id=%d, resample_distance=%.3f",
+    lane_marker_topic_.c_str(), lane_marker_namespace_.c_str(),
+    lane_id_, resample_distance_);
 
-  // QoS compatível com publisher em Python: reliable, volatile
   auto qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliable();
 
   marker_sub_ = node_->create_subscription<visualization_msgs::msg::Marker>(
@@ -132,10 +134,11 @@ geometry_msgs::msg::PoseStamped VirtualLanesPlanner::transformToGlobalFrame(
 
   geometry_msgs::msg::PoseStamped out;
   try {
+    // Se stamp == 0, TF usa o transform mais recente.
     tf_->transform(pose, out, global_frame_, tf2::durationFromSec(0.5));
   } catch (const tf2::TransformException & ex) {
     RCLCPP_WARN(
-      logger_, "VirtualLanesPlanner: TF transform error from '%s' to '%s': %s",
+      logger_, "VirtualLanesPlanner: TF error '%s'->'%s': %s",
       pose.header.frame_id.c_str(), global_frame_.c_str(), ex.what());
     out = pose;
     out.header.frame_id = global_frame_;
@@ -143,20 +146,18 @@ geometry_msgs::msg::PoseStamped VirtualLanesPlanner::transformToGlobalFrame(
   return out;
 }
 
-void VirtualLanesPlanner::handleMarker(
-  const visualization_msgs::msg::Marker::SharedPtr msg)
+void VirtualLanesPlanner::handleMarker(const visualization_msgs::msg::Marker::SharedPtr msg)
 {
-  // garantir namespace certo
   if (!lane_marker_namespace_.empty() && msg->ns != lane_marker_namespace_) {
     return;
   }
-
-  // usar somente a faixa desejada (id configurado)
   if (msg->id != lane_id_) {
     return;
   }
-
   if (msg->type != visualization_msgs::msg::Marker::LINE_STRIP) {
+    return;
+  }
+  if (msg->points.size() < 2) {
     return;
   }
 
@@ -164,13 +165,12 @@ void VirtualLanesPlanner::handleMarker(
   converted.reserve(msg->points.size());
 
   geometry_msgs::msg::PoseStamped base_pose;
-  // IMPORTANT (timestamps): the marker publisher may not use simulated time (/clock)
-  // and can publish wall-time timestamps. If we copy those timestamps into the path,
-  // Nav2 will later try to transform poses at epoch time while TF is in sim time,
-  // resulting in: "Transform data too old when converting from map to odom".
-  // Therefore, we deliberately override the stamp with this node's time.
   base_pose.header.frame_id = msg->header.frame_id;
-  base_pose.header.stamp = node_->now();
+
+  // Ponto chave: usar stamp=0 evita mismatch wall-time vs sim-time
+  // e evita "Transform data too old" quando TF está em /clock.
+  base_pose.header.stamp = rclcpp::Time(0);
+
   base_pose.pose = msg->pose;
 
   for (const auto & p : msg->points) {
@@ -179,8 +179,7 @@ void VirtualLanesPlanner::handleMarker(
     lane_pose.pose.position.y = p.y;
     lane_pose.pose.position.z = p.z;
 
-    auto global_pose = transformToGlobalFrame(lane_pose);
-    converted.push_back(global_pose);
+    converted.push_back(transformToGlobalFrame(lane_pose));
   }
 
   {
@@ -226,15 +225,13 @@ std::vector<geometry_msgs::msg::PoseStamped> VirtualLanesPlanner::resamplePath(
   const std::vector<geometry_msgs::msg::PoseStamped> & input,
   double ds) const
 {
-  std::vector<geometry_msgs::msg::PoseStamped> output;
-
   if (input.size() < 2 || ds <= 0.0) {
     return input;
   }
 
   const std::size_t n = input.size();
-
   std::vector<double> s(n, 0.0);
+
   for (std::size_t i = 1; i < n; ++i) {
     const auto & p0 = input[i - 1].pose.position;
     const auto & p1 = input[i].pose.position;
@@ -248,10 +245,12 @@ std::vector<geometry_msgs::msg::PoseStamped> VirtualLanesPlanner::resamplePath(
     return input;
   }
 
+  std::vector<geometry_msgs::msg::PoseStamped> output;
+  output.reserve(static_cast<std::size_t>(total_length / ds) + 3);
+
   output.push_back(input.front());
 
   double d = ds;
-
   while (d < total_length) {
     std::size_t i = 0;
     while (i + 1 < n && s[i + 1] < d) {
@@ -262,7 +261,7 @@ std::vector<geometry_msgs::msg::PoseStamped> VirtualLanesPlanner::resamplePath(
     }
 
     const double seg_len = s[i + 1] - s[i];
-    if (seg_len <= 1e-6) {
+    if (seg_len <= 1e-9) {
       d += ds;
       continue;
     }
@@ -273,7 +272,7 @@ std::vector<geometry_msgs::msg::PoseStamped> VirtualLanesPlanner::resamplePath(
     const auto & p1 = input[i + 1].pose.position;
 
     geometry_msgs::msg::PoseStamped p;
-    p.header = input[i].header;
+    p.header = input[i].header;  // mantém frame, e stamp=0 se você já setou antes
 
     p.pose.position.x = p0.x + t * (p1.x - p0.x);
     p.pose.position.y = p0.y + t * (p1.y - p0.y);
@@ -302,11 +301,21 @@ nav_msgs::msg::Path VirtualLanesPlanner::createPlan(
   const geometry_msgs::msg::PoseStamped & goal)
 {
   nav_msgs::msg::Path path;
-  path.header.stamp = node_->now();
   path.header.frame_id = global_frame_;
 
-  auto start_global = transformToGlobalFrame(start);
-  auto goal_global = transformToGlobalFrame(goal);
+  // Mesma lógica: stamp=0 para evitar time-domain mismatch
+  path.header.stamp = rclcpp::Time(0);
+
+  auto start_in = start;
+  auto goal_in = goal;
+
+  // Zera os stamps se vierem com wall-time e seu TF estiver em sim-time.
+  // Isso força TF a usar "latest".
+  start_in.header.stamp = rclcpp::Time(0);
+  goal_in.header.stamp  = rclcpp::Time(0);
+
+  auto start_global = transformToGlobalFrame(start_in);
+  auto goal_global  = transformToGlobalFrame(goal_in);
 
   std::vector<geometry_msgs::msg::PoseStamped> lane_copy;
   {
@@ -315,16 +324,17 @@ nav_msgs::msg::Path VirtualLanesPlanner::createPlan(
   }
 
   if (lane_copy.empty()) {
-    RCLCPP_WARN(
-      logger_,
-      "VirtualLanesPlanner: no lane points available, using straight line");
-    path.poses.push_back(start_global);
-    path.poses.push_back(goal_global);
+    RCLCPP_WARN(logger_, "VirtualLanesPlanner: no lane points, using straight line");
+    start_global.header.frame_id = global_frame_;
+    goal_global.header.frame_id = global_frame_;
+    start_global.header.stamp = rclcpp::Time(0);
+    goal_global.header.stamp = rclcpp::Time(0);
+    path.poses = {start_global, goal_global};
     return path;
   }
 
   std::size_t start_idx = nearestIndex(start_global, lane_copy);
-  std::size_t goal_idx = nearestIndex(goal_global, lane_copy);
+  std::size_t goal_idx  = nearestIndex(goal_global, lane_copy);
 
   RCLCPP_INFO(
     logger_,
@@ -347,57 +357,45 @@ nav_msgs::msg::Path VirtualLanesPlanner::createPlan(
     }
   }
 
-  if (segment.empty()) {
-    path.poses.push_back(start_global);
-    path.poses.push_back(goal_global);
+  if (segment.size() < 2) {
+    start_global.header.stamp = rclcpp::Time(0);
+    goal_global.header.stamp  = rclcpp::Time(0);
+    path.poses = {start_global, goal_global};
     return path;
   }
 
+  // Densifica
   auto dense_segment = resamplePath(segment, resample_distance_);
-  path.poses = dense_segment;
+  path.poses = std::move(dense_segment);
 
+  // Fix start/end e zera stamp
   if (!path.poses.empty()) {
     path.poses.front() = start_global;
-    path.poses.back() = goal_global;
+    path.poses.back()  = goal_global;
   }
 
-  // IMPORTANT (timestamps / frame_id):
-  // Ensure every pose in the Path is stamped consistently with the planner's clock.
-  // If any pose keeps an "epoch" timestamp (e.g., copied from a marker publisher
-  // not using /clock), Nav2 will request TF at that time and trigger:
-  //   "Transform data too old when converting from map to odom"
-  // which then causes the controller loop to miss its desired rate and the robot never moves.
+  // Garante frame e stamp coerentes
   for (auto & ps : path.poses) {
     ps.header.frame_id = global_frame_;
-    ps.header.stamp = path.header.stamp;
+    ps.header.stamp = rclcpp::Time(0);
   }
 
-  // -------------------------------------------------------------------------
-  // Ajusta as orientações intermediárias para seguirem a direcção do percurso.
-  // Sem isto, todas as poses herdam a orientação do Marker (geralmente neutra),
-  // e o controlador local acumula um custo enorme em PathAngleCritic.
-  // Atribuímos um yaw à pose i de acordo com o vector para a pose i+1.
-  {
-    auto & poses = path.poses;
-    if (poses.size() >= 2) {
-      for (size_t i = 0; i + 1 < poses.size(); ++i) {
-        const auto & p0 = poses[i].pose.position;
-        const auto & p1 = poses[i + 1].pose.position;
-        const double dx = p1.x - p0.x;
-        const double dy = p1.y - p0.y;
-        const double yaw = std::atan2(dy, dx);
-        poses[i].pose.orientation = yawToQuat(yaw);
-      }
-      poses.back().pose.orientation = poses[poses.size() - 2].pose.orientation;
+  // Ajusta yaw seguindo a direção do caminho
+  auto & poses = path.poses;
+  if (poses.size() >= 2) {
+    for (std::size_t i = 0; i + 1 < poses.size(); ++i) {
+      const auto & p0 = poses[i].pose.position;
+      const auto & p1 = poses[i + 1].pose.position;
+      const double yaw = std::atan2(p1.y - p0.y, p1.x - p0.x);
+      poses[i].pose.orientation = yawToQuat(yaw);
     }
+    poses.back().pose.orientation = poses[poses.size() - 2].pose.orientation;
   }
-  // -------------------------------------------------------------------------
 
   return path;
 }
 
 }  // namespace nav_virtual_lanes_planner
 
-PLUGINLIB_EXPORT_CLASS(
-  nav_virtual_lanes_planner::VirtualLanesPlanner,
-  nav2_core::GlobalPlanner)
+// Export tem que estar fora do namespace
+PLUGINLIB_EXPORT_CLASS(nav_virtual_lanes_planner::VirtualLanesPlanner, nav2_core::GlobalPlanner)
