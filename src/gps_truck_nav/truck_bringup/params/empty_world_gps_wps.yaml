@@ -1,10 +1,156 @@
 waypoints:
+
+#///////////DEMO SIMULATION /////////////////
+
 # - latitude: 38.16149888747468
 #   longitude: -122.45441473107142
 #   yaw: 0.013853988010199991
 # - latitude: 38.161520
 #   longitude: -122.453340
 #   yaw: 0.01
-- latitude: 38.161520
-  longitude: -122.45270
+# - latitude: 38.161520
+#   longitude: -122.45270
+#   yaw: 0.01
+
+#///////////////////////
+  # CTVI IRacemapólis
+#////////////////////////
+
+# - latitude: 22.61
+#   longitude: 47.50
+#   yaw: 0.01
+
+#/////////////////////////////////////////////////////////
+  #SCENARIO 1_2  waypoints: Straight line vel 15 - 20 km/h
+#/////////////////////////////////////////////////////////
+
+# - latitude: -22.617921667
+#   longitude: -47.502277333
+#   yaw: 0.01
+
+# - latitude: -22.61783795
+#   longitude: -47.502231433
+#   yaw: 0.01
+
+# - latitude: -22.617684283
+#   longitude: -47.502146683
+#   yaw: 0.01
+
+# - latitude: -22.61750305
+#   longitude: -47.502047267
+#   yaw: 0.01
+
+# - latitude: -22.6173304
+#   longitude: -47.50195305
+#   yaw: 0.01
+
+# - latitude: -22.617161833
+#   longitude: -47.501861383
+#   yaw: 0.01
+
+# - latitude: -22.616986567
+#   longitude: -47.501766717
+#   yaw: 0.01
+
+# - latitude: -22.616812617
+#   longitude: -47.501673417
+#   yaw: 0.01
+
+# - latitude: -22.6166377
+#   longitude: -47.50158
+#   yaw: 0.01
+
+# - latitude: -22.616496017
+#   longitude: -47.501504467
+#   yaw: 0.01
+
+#////////////////////////////////////////////////////////////////////
+  #SCENARIO 3_4  waypoints: Straight line + ARC 20: vel 15 - 20 km/h 
+#////////////////////////////////////////////////////////////////////
+
+# - latitude: -22.617891033
+#   longitude: -47.502318583
+#   yaw: 0.01
+
+# - latitude: -22.617836683
+#   longitude: -47.50230105
+#   yaw: 0.01
+
+# - latitude: -22.617702317
+#   longitude: -47.5022527
+#   yaw: 0.01
+
+# - latitude: -22.6175573
+#   longitude: -47.502196733
+#   yaw: 0.01
+
+# - latitude: -22.617412933
+#   longitude: -47.502140983
+#   yaw: 0.01
+
+# - latitude: -22.617263717
+#   longitude: -47.502081867
+#   yaw: 0.01
+
+# - latitude: -22.61712615
+#   longitude: -47.50197625
+#   yaw: 0.01
+
+# - latitude: -22.61708605
+#   longitude: -47.501864383
+#   yaw: 0.01
+
+# - latitude: -22.617128133
+#   longitude: -47.501710517
+#   yaw: 0.01
+
+# - latitude: -22.617301717
+#   longitude: -47.50162945
+#   yaw: 0.01
+
+#//////////////////////////////////////////////////////////////////
+ #SCENARIO 5_6  waypoints: Straight line + ARC 40: vel 15 - 20 km/h
+#///////////////////////////////////////////////////////////////////
+
+- latitude: -22.617890617
+  longitude: -47.502320817
   yaw: 0.01
+
+- latitude: -22.617870333
+  longitude: -47.502319667
+  yaw: 0.01
+
+- latitude: -22.617784767
+  longitude: -47.5023116
+  yaw: 0.01
+
+- latitude: -22.617657333
+  longitude: -47.502301067
+  yaw: 0.01
+
+- latitude: -22.617538783
+  longitude: -47.502293617
+  yaw: 0.01
+
+- latitude: -22.617415217
+  longitude: -47.502288317
+  yaw: 0.01
+
+- latitude: -22.617281717
+  longitude: -47.502278
+  yaw: 0.01
+
+- latitude: -22.617124983
+  longitude: -47.502232833
+  yaw: 0.01
+
+- latitude: -22.61692275
+  longitude: -47.502001783
+  yaw: 0.01
+
+- latitude: -22.617250817
+  longitude: -47.501437433
+  yaw: 0.01
+
+
+

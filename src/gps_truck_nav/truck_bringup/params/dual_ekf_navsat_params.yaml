@@ -122,11 +122,11 @@ navsat_transform:
     frequency: 30.0
     delay: 3.0
     magnetic_declination_radians: 0.0 #0.266512
-    yaw_offset: 0.0
+    yaw_offset: 0.0 #2.035032145
     zero_altitude: true
     broadcast_utm_transform: true
     publish_filtered_gps: true
     use_odometry_yaw: false #true
-    wait_for_datum: false #true 
-    #datum: [38.161491, -122.4546443, 0.0] # pre-set datum if needed, [lat, lon, yaw]
+    wait_for_datum: true 
+    datum: [-22.617921667, -47.502277333, 2.035032145] # pre-set datum if needed, [lat, lon, yaw]
 
