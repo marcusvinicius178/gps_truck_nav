@@ -1,0 +1,19 @@
+# Historical dependency names retained for provenance. Not a public install recipe.
+# Duplicate bcr_teleop key corrected to offroad_sim; no repository substituted.
+repositories:
+  navigation2:
+    type: git
+    url: https://github.com/marcusvinicius178/navigation2-private.git
+    version: iron-truck
+  rviz2_plugin_ser2res:
+    type: git
+    url: https://github.com/ASIG-X/rviz2_plugin_ser2res.git
+    version: main
+  bcr_teleop:
+    type: git
+    url: https://github.com/blackcoffeerobotics/bcr_teleop.git
+    version: ros2
+  offroad_sim:
+    type: git
+    url: https://github.com/marcusvinicius178/offroad_sim.git
+    version: master

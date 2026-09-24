@@ -1,5 +1,0 @@
-<library path="libnav_virtual_lanes">
-  <class name="nav_virtual_lanes::WallInflationLayer" type="nav_virtual_lanes::WallInflationLayer" base_class_type="nav2_costmap_2d::Layer">
-    <description>Inflation layer for virtual walls</description>
-  </class>
-</library>

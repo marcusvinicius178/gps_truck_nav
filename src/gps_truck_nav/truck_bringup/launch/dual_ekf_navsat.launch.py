@@ -15,6 +15,7 @@ from launch import LaunchDescription
 from ament_index_python.packages import get_package_share_directory
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 import launch_ros.actions
 import os
 import launch.actions
@@ -23,11 +24,14 @@ import launch.actions
 def generate_launch_description():
     bringup_dir = get_package_share_directory(
         "truck_bringup")
-    rl_params_file = os.path.join(
-        bringup_dir, "params", "dual_ekf_navsat_params.yaml")
+    rl_params_file = LaunchConfiguration("localization_params_file")
 
     return LaunchDescription(
         [
+            launch.actions.DeclareLaunchArgument("use_sim_time", default_value="true"),
+            launch.actions.DeclareLaunchArgument(
+                "localization_params_file",
+                default_value=os.path.join(bringup_dir, "params", "dual_ekf_navsat_params.yaml")),
             launch.actions.DeclareLaunchArgument(
                 "output_final_position", default_value="false"
             ),
@@ -39,7 +43,7 @@ def generate_launch_description():
                 executable="ekf_node",
                 name="ekf_filter_node_odom",
                 output="screen",
-                parameters=[rl_params_file, {"use_sim_time": True}],
+                parameters=[rl_params_file, {"use_sim_time": LaunchConfiguration("use_sim_time")}],
                 remappings=[("odometry/filtered", "odometry/local")],
             ),
             launch_ros.actions.Node(
@@ -47,7 +51,7 @@ def generate_launch_description():
                 executable="ekf_node",
                 name="ekf_filter_node_map",
                 output="screen",
-                parameters=[rl_params_file, {"use_sim_time": True}],
+                parameters=[rl_params_file, {"use_sim_time": LaunchConfiguration("use_sim_time")}],
                 remappings=[("odometry/filtered", "odometry/global")],
             ),
             launch_ros.actions.Node(
@@ -55,9 +59,9 @@ def generate_launch_description():
                 executable="navsat_transform_node",
                 name="navsat_transform",
                 output="screen",
-                parameters=[rl_params_file, {"use_sim_time": True}],
+                parameters=[rl_params_file, {"use_sim_time": LaunchConfiguration("use_sim_time")}],
                 remappings=[
-                    ("imu/data", "imu/data"),
+                    ("imu/data", "imu"),
                     ("gps/fix", "gps/fix"),
                     ("gps/filtered", "gps/filtered"),
                     ("odometry/gps", "odometry/gps"),
