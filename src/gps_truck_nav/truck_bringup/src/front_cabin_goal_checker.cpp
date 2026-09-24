@@ -3,7 +3,10 @@
 #include "rclcpp/rclcpp.hpp"
 #include "angles/angles.h"
 #include "tf2/LinearMath/Quaternion.h"
+#include "tf2/utils.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+#include <cmath>
+#include <stdexcept>
 
 class FrontCabinGoalChecker : public nav2_core::GoalChecker
 {

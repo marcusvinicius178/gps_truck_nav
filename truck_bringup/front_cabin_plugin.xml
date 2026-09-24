@@ -1,7 +1,0 @@
-<library path="libfront_cabin_goal_checker">
-  <class name="truck_bringup/FrontCabinGoalChecker" type="FrontCabinGoalChecker" base_class_type="nav2_core::GoalChecker">
-    <description>
-      This is a custom goal checker plugin that considers the front of a vehicle for goal reaching criteria.
-    </description>
-  </class>
-</library>

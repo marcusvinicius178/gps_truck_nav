@@ -4,3 +4,14 @@
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
 *.jpeg filter=lfs diff=lfs merge=lfs -text
+
+# These eight historical PNG blobs already live in ordinary Git. Preserve bytes
+# and avoid false LFS pointer errors; do not migrate or rewrite their history.
+src/gps_truck_nav/truck_bringup/models/Lencois_Farm/textures/Lencois_Farm_aerial.png -filter -diff -merge -text
+src/gps_truck_nav/truck_bringup/models/Lencois_Farm/textures/Lencois_Farm_heightmap.png -filter -diff -merge -text
+src/gps_truck_nav/truck_bringup/models/Lencois_Paulista_Farm/textures/Lencois_Paulista_Farm_aerial.png -filter -diff -merge -text
+src/gps_truck_nav/truck_bringup/models/Lencois_Paulista_Farm/textures/Lencois_Paulista_Farm_heightmap.png -filter -diff -merge -text
+src/gps_truck_nav/truck_bringup/models/ctvi/materials/textures/ctvi_aerial.png -filter -diff -merge -text
+src/gps_truck_nav/truck_bringup/models/ctvi/materials/textures/ctvi_heightmap.png -filter -diff -merge -text
+src/gps_truck_nav/truck_bringup/models/ctvi_completo/textures/ctvi_aerial.png -filter -diff -merge -text
+src/gps_truck_nav/truck_bringup/models/ctvi_completo/textures/ctvi_heightmap.png -filter -diff -merge -text

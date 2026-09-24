@@ -3,34 +3,21 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    user: "0:0"
-    entrypoint: ["/entrypoint.sh"]
-    command: ["bash","-lc","sleep infinity"]
+    command: ["sleep", "infinity"]
     tty: true
     stdin_open: true
     environment:
-      - ROS_DISTRO=iron
-      - ROSDEP_AUTO_INSTALL=1
-      - BUILD_GZ_CLASSIC=1
-      # ---- X11 para GUI ----
-      - DISPLAY=${DISPLAY}
-      - QT_X11_NO_MITSHM=1
-      # Opcional: force Qt a usar X11 (Wayland costuma causar dor de cabeça)
-      - QT_QPA_PLATFORM=xcb
-      # Opcional: usar modelos locais do Gazebo e não baixar do Fuel
-      - GAZEBO_MODEL_DATABASE_URI=
+      DISPLAY: ${DISPLAY:-}
+      QT_X11_NO_MITSHM: "1"
+      QT_QPA_PLATFORM: xcb
+      GAZEBO_MODEL_DATABASE_URI: ""
     volumes:
-      - ./src:/ws/src:rw
+      - .:/repo:ro
       - build_nav2:/ws/build
       - install_nav2:/ws/install
       - log_nav2:/ws/log
-      # Socket X11 (necessário para GUI)
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
-
 volumes:
   build_nav2:
-    name: nav_gps_ws_build_nav2
   install_nav2:
-    name: nav_gps_ws_install_nav2
   log_nav2:
-    name: nav_gps_ws_log_nav2

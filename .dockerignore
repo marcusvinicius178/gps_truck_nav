@@ -1,0 +1,4 @@
+# The image installs dependencies; source is a read-only runtime bind mount.
+*
+!Dockerfile
+!entrypoint.sh

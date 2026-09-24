@@ -2,35 +2,54 @@
 <package format="3">
   <name>truck_bringup</name>
   <version>0.0.1</version>
-  <description>Bringup setup for the gps Nav Truck stack</description>
-  <maintainer email="marcusvini178@usp.br">Marcus Vinicius Leal de Carvalho</maintainer>
+  <description>Gazebo Classic, GNSS localization and Navigation2 integration for an 8x4 Ackermann research truck.</description>
+  <maintainer email="marcusvini178@usp.br">Marcus Vinícius Leal de Carvalho</maintainer>
+  <!-- Retained declaration; see repository LICENSE and THIRD_PARTY_NOTICES.md. -->
   <license>Apache-2.0</license>
-
   <buildtool_depend>ament_cmake</buildtool_depend>
-  <buildtool_depend>ament_python</buildtool_depend> 
-
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
   <build_depend>nav2_common</build_depend>
-  <build_depend>navigation2</build_depend>
-  <build_depend>launch_ros</build_depend>
-  <build_depend>gazebo_ros</build_depend>
-
-
+  <depend>nav2_core</depend>
+  <depend>nav2_costmap_2d</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>geometry_msgs</depend>
+  <depend>pluginlib</depend>
+  <depend>angles</depend>
+  <depend>tf2</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
-  <exec_depend>navigation2</exec_depend>
   <exec_depend>nav2_common</exec_depend>
-  <exec_depend>slam_toolbox</exec_depend>
-  <exec_depend>turtlebot3_gazebo</exec_depend>
+  <exec_depend>navigation2</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>nav2_simple_commander</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>rclcpp_components</exec_depend>
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>robot_localization</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>gazebo_ros</exec_depend>
-
-
+  <exec_depend>gazebo_plugins</exec_depend>
+  <exec_depend>geographic_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-tk</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>mapviz</exec_depend>
+  <exec_depend>mapviz_plugins</exec_depend>
+  <exec_depend>tile_map</exec_depend>
+  <exec_depend>swri_transform_util</exec_depend>
   <test_depend>ament_lint_common</test_depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>ament_cmake_pytest</test_depend>
-  <test_depend>launch</test_depend>
   <test_depend>launch_testing</test_depend>
-
   <export>
     <build_type>ament_cmake</build_type>
   </export>

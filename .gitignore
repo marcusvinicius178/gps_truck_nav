@@ -7,10 +7,30 @@ log/
 .DS_Store
 .vscode/
 .idea/
-truck_bringup/bing_key.txt
+bing_key.txt
+*.local.mvc
+*.local.yaml
+.env
+.env.*
+!.env.example
+secrets/
+credentials/
+.aws/
+.ssh/
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*.db3
+*.mcap
+*.bag
+*.swp
+*.swo
+*~
 
-# Ignorar modelos 3D pesados já no working tree
-src/gps_truck_nav/truck_bringup/models/arocs_truck/meshes/
+# Meshes required by the simulation are versioned through Git LFS.
 # terceiros (não versionar)
 src/navigation2/
 src/offroad_sim/

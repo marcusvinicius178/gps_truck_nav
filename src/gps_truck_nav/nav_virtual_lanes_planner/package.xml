@@ -3,8 +3,8 @@
   <name>nav_virtual_lanes_planner</name>
   <version>0.0.0</version>
   <description>Virtual lanes global planner for agricultural truck</description>
-  <maintainer email="user@todo.todo">user</maintainer>
-  <license>TODO: License declaration</license>
+  <maintainer email="marcusvini178@usp.br">Marcus Vinícius Leal de Carvalho</maintainer>
+  <license>LicenseRef-Provenance-Review-Required</license>
 
   <!-- Tipo de build: ament_cmake -->
   <buildtool_depend>ament_cmake</buildtool_depend>

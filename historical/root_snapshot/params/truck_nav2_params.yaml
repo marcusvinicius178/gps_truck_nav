@@ -78,8 +78,6 @@ bt_navigator:
       - compute_path_error_code
       - follow_path_error_code
 
-    default_controller: "RegulatedPurePursuit"
-
 # GPS WPF CHANGE: Remove static layer
 local_costmap:
   local_costmap:
@@ -94,19 +92,30 @@ local_costmap:
       global_frame: odom
       robot_base_frame: base_footprint
       rolling_window: true
-      width: 200
-      height: 120
+      width: 100
+      height: 60
       origin_x: 50.0  # Shifts the costmap back by 75 meters
       origin_y: 0.0  # No lateral shift
       resolution:  1.0 #1.0 #0.05 Increased tge resoluiton to 1 meter for 1 grid, since the truck is much bigger than turtlebot size, and 0.1 was default for turtlebot.
       #robot_radius: 5.0 #0.22
       footprint:  "[[-4.8025, -1.739], [4.8025, -1.739], [4.8025, 1.739], [-4.8025, 1.739]]"
-      plugins: ["obstacle_layer", "voxel_layer", "inflation_layer"] #"virtual_off_road_layer"]   # ,"voxel_layer_wall"] # "range_sensor_layer"] 
+      plugins: ["custom_virtual_obstacle_layer", "obstacle_layer", "voxel_layer", "inflation_layer"] #"virtual_off_road_layer"]   # ,"voxel_layer_wall"] # "range_sensor_layer"] 
       #filters: ["binary_filter"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 0.5 #1.0 #3.0 #Cost scale number 1 does not push robot against obstacle. Value of 2 create more stronger potential field for the planner deviate with higher offset...
         inflation_radius: 3.0 #0.01 #10.0 # The inflation radius must be higher than robot's radius to create potential regions #0.5 #0.55 #the blue region is max with number 1 assigned, then with number 2 assigned starts red regions, and later other dark blue about number 5 assigned.
+
+
+      custom_virtual_obstacle_layer:
+        plugin: "nav2_custom_layers::CustomVirtualObstacleLayer"
+        enabled: true
+        clearing: false 
+        voxel_grid_topic: "/local_costmap/custom_voxel_grid"
+        topic_name: "/external_area_pointcloud"
+        z_resolution: 0.2
+        origin_z: 0.0
+        z_voxels: 16
 
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -120,7 +129,7 @@ local_costmap:
           data_type: "PointCloud2"
           obstacle_max_range: 50.0
           obstacle_min_range: 0.0
-          inf_is_valid: false
+          inf_is_valid: true
 
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
@@ -142,8 +151,122 @@ local_costmap:
           raytrace_min_range: 0.0
           obstacle_max_range: 40.0
           obstacle_min_range: 0.0
-          marking_threshold: 0 # THIS SET ZONES AS LETHAL OBSTACLES if = 100
-          inf_is_valid: false
+          marking_threshold: 100 # THIS SET ZONES AS LETHAL OBSTACLES
+          inf_is_valid: true
+        # virtual_wall_scan:
+        #   topic: /virtual_wall_scan
+        #   max_obstacle_height: 2.0
+        #   clearing: True
+        #   marking: True
+        #   data_type: "LaserScan"
+        #   raytrace_max_range: 40.0
+        #   raytrace_min_range: 0.0
+        #   obstacle_max_range: 40.0
+        #   obstacle_min_range: 0.0
+        #   marking_threshold: 100
+        #   inf_is_valid: true
+
+        # left_scan:
+        #   topic: /left_scan
+        #   max_obstacle_height: 2.0
+        #   clearing: True
+        #   marking: True
+        #   data_type: "LaserScan"
+        #   raytrace_max_range: 50.0
+        #   raytrace_min_range: 0.0
+        #   obstacle_max_range: 50.0
+        #   obstacle_min_range: 1.0
+        #   inf_is_valid: true
+        # right_scan:
+        #   topic: /right_scan
+        #   max_obstacle_height: 2.0
+        #   clearing: True
+        #   marking: True
+        #   data_type: "LaserScan"
+        #   raytrace_max_range: 50.0
+        #   raytrace_min_range: 0.0
+        #   obstacle_max_range: 50.0
+        #   obstacle_min_range: 1.0
+        #   inf_is_valid: true
+
+        # fused_scan:
+        #   topic: /fused_scan
+        #   max_obstacle_height: 2.0
+        #   clearing: True
+        #   marking: True
+        #   data_type: "LaserScan"
+        #   raytrace_max_range: 25.0
+        #   raytrace_min_range: 0.0
+        #   obstacle_max_range: 25.0
+        #   obstacle_min_range: 1.0
+        #   clear_on_max_reading: true
+        #   inf_is_valid: false #true
+
+      # range_sensor_layer: #IT delays too much to send data, issues with planner and control when integrated
+      #   plugin: "nav2_costmap_2d::RangeSensorLayer"
+      #   enabled: True
+      #   transform_tolerance: 0.3
+      #   clear_on_max_reading: true
+      #   topics: ["/ultrassonic/front_left"]
+      #   clear_threshold: 0.2
+      #   mark_threshold: 0.8
+      #   no_readings_timeout: 5.0
+      #   clear_after_reading: true
+      #   max_distance: 5.0
+      #   min_distance: 0.2
+      #   clear_on_max_reading: true
+      #   buffer_size: 10
+      #   observation_persistence: 2.0
+      #   inf_is_valid: false
+      #always_send_full_costmap: True
+
+      # binary_filter:
+      #   plugin: "nav2_costmap_2d::BinaryFilter"
+      #   enabled: True
+      #   filter_info_topic: "/costmap_filter_info"
+      #   transform_tolerance: 0.1
+      #   default_state: False
+      #   binary_state_topic: "/binary_state"
+      #   flip_threshold: 50.0
+
+
+      # voxel_layer_wall:
+      #   inflation_radius: 10.0
+      #   plugin: "nav2_costmap_2d::VoxelLayer"
+      #   enabled: True
+      #   publish_voxel_map: True
+      #   origin_z: 0.0
+      #   z_resolution:  1.0 
+      #   z_voxels: 16
+      #   max_obstacle_height: 10.0
+      #   mark_threshold: 0
+      #   inflation_radius: 10.0
+      #   observation_sources: virtual_wall_points
+      #   virtual_wall_points:
+      #     topic: /virtual_wall_points
+      #     max_obstacle_height: 2.0
+      #     clearing: True
+      #     marking: True
+      #     data_type: "PointCloud2"
+      #     raytrace_max_range: 40.0
+      #     raytrace_min_range: 0.0
+      #     obstacle_max_range: 40.0
+      #     obstacle_min_range: 0.0
+      #     marking_threshold: 100
+      #     inf_is_valid: true
+      # virtual_off_road_layer:
+      #   plugin: "VirtualOffRoadLayer"
+      #   enabled: true
+      #   publish_voxel_map: true
+      #   topic: "/external_area_occupancy_grid"
+      #   origin_z: 0.0
+      #   z_resolution: 0.2
+      #   z_voxels: 10
+      #   unknown_threshold: 15
+      #   mark_threshold: 0
+
+
+
 
 
 # GPS WPF CHANGE: Remove static layer
@@ -169,19 +292,57 @@ global_costmap:
       # fit on a big static costmap. Thus it is recommended to use a rolling global costmap large enough to 
       # contain each pair of successive waypoints. See: https://github.com/ros-planning/navigation2/issues/2174
       rolling_window: True
-      width: 1000
-      height: 300
+      width: 600
+      height: 150
       origin_x: 100.0  # Shifts the costmap back by 75 meters
       origin_y: 0.0  # No lateral shift
       # no static map
-      plugins: ["obstacle_layer", "inflation_layer"] # "virtual_off_road_layer"] #, "voxel_layer_wall"]
+      plugins: ["custom_virtual_obstacle_layer", "obstacle_layer", "inflation_layer"] # "virtual_off_road_layer"] #, "voxel_layer_wall"]
       #filters: ["binary_filter"]
       #plugins: ["static_layer", "inflation_layer", "obstacle_layer"]  # We won't use static map
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
         observation_sources: sick_scan_2D external_pointcloud #virtual_wall_points virtual_wall_scan #right_scan #fused_scan left_scan right_scan sick_scan_2D 
-
+        # left_scan:
+        #   topic: /left_scan
+        #   max_obstacle_height: 2.0
+        #   clearing: True
+        #   marking: True
+        #   data_type: "LaserScan"
+        #   raytrace_max_range: 50.0
+        #   raytrace_min_range: 0.0
+        #   obstacle_max_range: 25.0
+        #   obstacle_min_range: 0.0
+        #   # outdoors there will probably be more inf points
+        #   inf_is_valid: true
+        #   clear_on_max_reading: true
+        #   #OTHER SCAN SOURCE
+        # right_scan:
+        #   topic: /right_scan
+        #   max_obstacle_height: 2.0
+        #   clearing: True
+        #   marking: True
+        #   data_type: "LaserScan"
+        #   raytrace_max_range: 50.0
+        #   raytrace_min_range: 0.0
+        #   obstacle_max_range: 25.0
+        #   obstacle_min_range: 1.0
+        #   # outdoors there will probably be more inf points
+        #   inf_is_valid: true
+        #   clear_on_max_reading: true
+        # fused_scan:
+        #   topic: /fused_scan
+        #   max_obstacle_height: 2.0
+        #   clearing: True
+        #   marking: True
+        #   data_type: "LaserScan"
+        #   raytrace_max_range: 90.0
+        #   raytrace_min_range: 0.0
+        #   obstacle_max_range: 90.0
+        #   obstacle_min_range: 1.0
+        #   inf_is_valid: false #true
+        #   clear_on_max_reading: true
         sick_scan_2D:
           topic: /sick_scan_2D
           max_obstacle_height: 2.0
@@ -192,9 +353,21 @@ global_costmap:
           raytrace_min_range: 0.0
           obstacle_max_range: 40.0
           obstacle_min_range: 1.0
-          marking_threshold: 0 # THIS SET ZONES AS LETHAL OBSTACLES
-          inf_is_valid: false
+          marking_threshold: 100 # THIS SET ZONES AS LETHAL OBSTACLES
+          inf_is_valid: true
           clear_on_max_reading: true
+        # virtual_wall_scan:
+        #   topic: /virtual_wall_scan
+        #   max_obstacle_height: 2.0
+        #   clearing: True
+        #   marking: True
+        #   data_type: "LaserScan"
+        #   raytrace_max_range: 40.0
+        #   raytrace_min_range: 0.0
+        #   obstacle_max_range: 40.0
+        #   obstacle_min_range: 0.0
+        #   marking_threshold: 100
+        #   inf_is_valid: true
 
         external_pointcloud:
           topic: /external_area_pointcloud
@@ -204,7 +377,7 @@ global_costmap:
           data_type: "PointCloud2"
           obstacle_max_range: 50.0
           obstacle_min_range: 0.0
-          inf_is_valid: false
+          inf_is_valid: true
 
 
           
@@ -213,6 +386,65 @@ global_costmap:
         cost_scaling_factor: 0.5 # 1.0 #3.0
         inflation_radius: 3.0 #0.01 #10.0 # # The inflation radius must be higher than robot's radius to create potential regions#0.5 #0.55
       always_send_full_costmap: True
+
+
+      # binary_filter:
+      #   plugin: "nav2_costmap_2d::BinaryFilter"
+      #   enabled: True
+      #   filter_info_topic: "/costmap_filter_info"
+      #   transform_tolerance: 0.1
+      #   default_state: False
+      #   binary_state_topic: "/binary_state"
+      #   flip_threshold: 50.0
+
+      # voxel_layer_wall:
+      #   inflation_radius: 10.0
+      #   plugin: "nav2_costmap_2d::VoxelLayer"
+      #   enabled: True
+      #   publish_voxel_map: True
+      #   origin_z: 0.0
+      #   z_resolution:  1.0 
+      #   z_voxels: 16
+      #   max_obstacle_height: 10.0
+      #   mark_threshold: 0
+      #   inflation_radius: 10.0
+      #   observation_sources: virtual_wall_points
+      #   virtual_wall_points:
+      #     topic: /virtual_wall_points
+      #     max_obstacle_height: 2.0
+      #     clearing: True
+      #     marking: True
+      #     data_type: "PointCloud2"
+      #     raytrace_max_range: 40.0
+      #     raytrace_min_range: 0.0
+      #     obstacle_max_range: 40.0
+      #     obstacle_min_range: 0.0
+      #     marking_threshold: 100
+      #     inf_is_valid: true
+# costmap_common_params.yaml
+
+      # virtual_off_road_layer:
+      #   plugin: "VirtualOffRoadLayer"
+      #   enabled: true
+      #   publish_voxel_map: true
+      #   topic: "/external_area_occupancy_grid"
+      #   origin_z: 0.0
+      #   z_resolution: 0.2
+      #   z_voxels: 10
+      #   unknown_threshold: 15
+      #   mark_threshold: 0
+      custom_virtual_obstacle_layer:
+        plugin: "nav2_custom_layers::CustomVirtualObstacleLayer"
+        enabled: true
+        clearing: false 
+        voxel_grid_topic: "/local_costmap/custom_voxel_grid"
+        topic_name: "/external_area_pointcloud"
+        z_resolution: 0.2
+        origin_z: 0.0
+        z_voxels: 16
+
+
+
 
 
 
@@ -227,7 +459,20 @@ map_saver:
     occupied_thresh_default: 0.65
     map_subscribe_transient_local: True
 
-# #GLOBAL PLANNER
+# map_server:
+#   ros__parameters:
+#     use_sim_time: True
+#     yaml_filename: "turtlebot3.yaml"
+
+# map_saver:
+#   ros__parameters:
+#     #use_sim_time: True
+#     save_map_timeout: 5.0
+#     free_thresh_default: 0.25
+#     occupied_thresh_default: 0.65
+#     map_subscribe_transient_local: True
+
+#GLOBAL PLANNER
 planner_server:
   ros__parameters:
     expected_planner_frequency: 5.0  # Expected frequency for the planner to run in Hz.
@@ -273,32 +518,9 @@ planner_server:
         footprint:  "[[-4.8025, -1.739], [4.8025, -1.739], [4.8025, 1.739], [-4.8025, 1.739]]"
 
 
-# planner_server:
-#   ros__parameters:
-#     expected_planner_frequency: 1.0
-#     planner_plugins: ["VirtualLanes"]
-
-#     VirtualLanes:
-#       plugin: "nav_virtual_lanes_planner/VirtualLanesPlanner"
-#       lane_marker_topic: "/visualization_marker"
-#       lane_marker_namespace: "lanes"
-#       lane_id: 1
-
-#       # Quanto menor, mais pontos (mais “SMAC-like” no número de amostras)
-#       resample_distance: 0.25
-
-#       # IMPORTANTE: evita TF old quando seu publisher de marker não está em /clock
-#       # now = sempre usa o tempo do clock do Nav2 (sim time se use_sim_time=true)
-#       stamp_mode: "now"     # now|zero|marker|start
-
-#       # timeout TF pequeno e seguro
-#       tf_timeout_sec: 0.2
-
-
-
+#LOCAL PLANNER 
 controller_server:
   ros__parameters:
-    use_sim_time: true
     controller_frequency: 20.0 #50.0  #20.0
     min_x_velocity_threshold: 0.01
     min_y_velocity_threshold: 0.5
@@ -333,44 +555,44 @@ controller_server:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 1.0 #1.5 # meters wE CANNOT LET IT DEVIATE TO MUCH FROM CENTER OF PLANNED TRAJECTORY, IT MUST TRACK AND FOLLOW IT KEEPING  ON CENTER
-      yaw_goal_tolerance: 0.25 #0.2 # 0.25 rad = 14 degrees
+      yaw_goal_tolerance: 0.1 #0.2 # 0.25 rad = 14 degrees
 
     FollowPath:
       plugin: "nav2_mppi_controller::MPPIController"
       # MPPI specific parameters
       #current_horizon = 0.02 * 150 = 3.0 segundos# current_horizon = model_dt * time_steps
-      time_steps: 40 #112 # new_time_steps = current_horizon / model_dt  # Increasing this value consumer more computer resources, however is needed to increase time horizon and get more smooth possible paths, increaseing time-horizon
+      time_steps: 60 #112 # new_time_steps = current_horizon / model_dt  # Increasing this value consumer more computer resources, however is needed to increase time horizon and get more smooth possible paths, increaseing time-horizon
       model_dt: 0.05 #0.02  # Adjust to match your control loop timing (1/ controller_frequency) , frequency = 50, model_dt = 0.02 
       #TIME HORIZON = model_dt * time_steps --> predicted horizon is about 2.24 seconds x 10 m/s (Transboard vel) = 22.4 meters < 50 meters of local costmap size (Ok is under the costmap size)
-      batch_size: 800 #1000  # Lowered to reduce computational load
-      vx_std: 0.03 #Adjust based on expected velocity deviations
+      batch_size: 1000 #1000  # Lowered to reduce computational load
+      vx_std: 0.1 #0.2  # Adjust based on expected velocity deviations
       #vy_std: 0.2  # Set to 0 as lateral movement is not applicable
-      wz_std: 0.02      # Adjust based on expected angular velocity deviations
-      vx_max: 25.0 #5.0 #8.5 # 5.0  # Set to your robot's max forward velocity= 8.5 m/s = 30 km/h (Transbord Operation)
+      wz_std: 1.0 #0.0175 #0.05  # Adjust based on expected angular velocity deviations
+      vx_max: 10.0 #5.0 #8.5 # 5.0  # Set to your robot's max forward velocity= 8.5 m/s = 30 km/h (Transbord Operation)
       vx_min: -2.25  # Set to your robot's max reverse velocity if applicable, else set to 0
       vy_max: 0.0  # Set to 0 as lateral movement is not applicable
-      wz_max: 0.4 #10.0  # Set to your robot's max angular velocity clockwise
-      wz_min: -0.4 #-10.0 # allow couterclockwise steering
-      iteration_count: 5  # Adjust based on the desired quality of the solution vs. computational time
-      temperature: 0.02 # 0.15 #0.2 # Lowered to encourage less exploration in the control space, following the optimal path, avoiding unncessary exploitation and selection of suboptimal paths (offset, paralle routes), focusing on optimum path and smooth trajectories.
-      gamma: 0.015  # Adjust based on your system's response to control inputs. I have reduced from 0.015 to 0.01 to favor smoother trajectory following.
+      wz_max: 1.5 #10.0  # Set to your robot's max angular velocity clockwise
+      wz_min: -1.5 #-10.0 # allow couterclockwise steering
+      iteration_count: 10 #5  # Adjust based on the desired quality of the solution vs. computational time
+      temperature: 0.05 # 0.15 #0.2 # Lowered to encourage less exploration in the control space, following the optimal path, avoiding unncessary exploitation and selection of suboptimal paths (offset, paralle routes), focusing on optimum path and smooth trajectories.
+      gamma: 0.02 #0.03 #0.015  # Adjust based on your system's response to control inputs. I have reduced from 0.015 to 0.01 to favor smoother trajectory following.
       motion_model: "Ackermann"  # Changed to Ackermann to match your robot's model
-      retry_attempt_limit: 5  # Sets the number of attempts to find a feasible trajectory before failure. Higher values increase resilience to transient navigation difficulties.
+      retry_attempt_limit: 10  # Sets the number of attempts to find a feasible trajectory before failure. Higher values increase resilience to transient navigation difficulties.
       reset_period: 2.0  # Time of inactivity required to reset the optimizer, helping recover from bad states. Relevant for maintaining consistent controller performance.
       regenerate_noises: false 
       #TRAJECTORY VISUALIZATION
-      visualize: false #true  # Enable to visualize sampled trajectories in RViz. Useful for debugging and tuning, but may impact performance due to data volume.
+      visualize: true  # Enable to visualize sampled trajectories in RViz. Useful for debugging and tuning, but may impact performance due to data volume.
       trajectory_step: 5  # Determines the step between visualized trajectories. A value of 5 means every 5th trajectory is visualized, reducing data volume for clarity.
       time_step: 3  # Sets the step between points on visualized trajectories. A value of 3 means every 3rd point is shown, balancing detail with visualization manageability.
       #PATH HANDLER PARAMS
       transform_tolerance: 1.0 #0.3  # Sets the tolerance for data transformations in seconds. A value of 0.3 allows for a broader window to accommodate potential delays in receiving GPS data and other sensor inputs, ensuring effective synchronization of data from different sources. This is particularly important in off-road conditions where GPS signal delays or inconsistencies might occur, helping to maintain accurate and reliable navigation despite these challenges.
-      prune_distance: 15.0 # Balanced foresight for smoother, efficient navigation # I am setting to be greater than twice of the truck size 
+      prune_distance: 120.0 # Balanced foresight for smoother, efficient navigation # I am setting to be greater than twice of the truck size 
 ## Distance ahead of the nearest path point to the truck to prune the path.
 # Determines the length of the path segment considered for current navigation decisions.
 # Increasing this distance allows for more foresighted planning, enabling smoother maneuvers and better anticipation of upcoming path changes.
 # Too high a value might overload the system with distant path details, while too low could lead to short-sighted navigation,
 # potentially missing out on efficient route adjustments or preparation for future obstacles and turns.
-      max_robot_pose_search_dist: 10.0   # Don't increase too much otherwise the truck will move just straight thinking it can readapt to a curve later
+      max_robot_pose_search_dist: 25.0   # Don't increase too much otherwise the truck will move just straight thinking it can readapt to a curve later
 ## Max integrated distance ahead of robot pose to search for the nearest path point.
 # A higher value allows for a broader search area to reacquire the path after deviations,
 # especially useful in complex or looping paths. It ensures the truck can find its way back to the path efficiently,
@@ -389,21 +611,21 @@ controller_server:
       PathFollowCritic:
         enabled: true
         cost_weight: 60.0 # Prioritizes progression along the path, key for efficient navigation in variable off-road conditions.
-        cost_power: 2  # Quadratic cost scaling to deter deviations from the path, ensuring diligent path tracking.
+        cost_power: 5 #2  # Quadratic cost scaling to deter deviations from the path, ensuring diligent path tracking.
         threshold_to_consider: 0.5  # Adjusted for the truck's dimensions, allowing path follow behavior up until closer proximity to the goal.
         offset_from_furthest: 1  # Optimized to keep the vehicle aligned with the path's most relevant segments, enhancing navigational accuracy.
       
       ObstaclesCritic:
         enabled: true
-        critical_weight: 15.0             # Increases penalty for near-collision scenarios, crucial for a large off-road truck to maintain safe distances from obstacles.
-        repulsion_weight: 1.0             # Enhances general obstacle avoidance, providing a balance between safety and efficiency in dynamic environments.
+        critical_weight: 70.0 #35.0             # Increases penalty for near-collision scenarios, crucial for a large off-road truck to maintain safe distances from obstacles.
+        repulsion_weight: 1.5             # Enhances general obstacle avoidance, providing a balance between safety and efficiency in dynamic environments.
         cost_power: 2 #1                     # Quadratic scaling of obstacle costs, promoting safer routes by penalizing closer obstacles more heavily.
         consider_footprint: true          # Essential for accurate obstacle avoidance, considering the truck's entire physical footprint.
         collision_cost: 100000.0          # Sets a high penalty for collisions, reflecting the greater impact of collisions for larger vehicles.
-        collision_margin_distance: 8.0   # A wider margin to severely penalize near-collision paths, suitable for the truck's size.
-        near_goal_distance: 5.0           # Allows smoother goal convergence by relaxing obstacle avoidance near the goal, accommodating the truck's navigation needs.
-        cost_scaling_factor: 5.0         # Consistent with the inflation layer, ensuring coherent obstacle cost scaling.
-        inflation_radius: 8.0             # A larger radius around obstacles, providing a safer navigation buffer for the truck.
+        collision_margin_distance: 11.0   # A wider margin to severely penalize near-collision paths, suitable for the truck's size.
+        near_goal_distance: 7.0           # Allows smoother goal convergence by relaxing obstacle avoidance near the goal, accommodating the truck's navigation needs.
+        cost_scaling_factor: 7.0         # Consistent with the inflation layer, ensuring coherent obstacle cost scaling.
+        inflation_radius: 11.0             # A larger radius around obstacles, providing a safer navigation buffer for the truck.
         inflation_layer_name: ""          # Specify if using multiple inflation layers and a particular one is needed for obstacle inflation.
       
       # GoalAngleCritic:
@@ -415,7 +637,7 @@ controller_server:
         enabled: true
         threshold_to_consider: 1.0 #2.0  # Increased to 2 meters to start considering goal distance cost from a greater distance, accommodating the truck's larger size and ensuring smoother transitions to goal-directed movement.
         cost_power: 2 #2    # Set to 2 to apply a quadratic scaling of goal distance cost, encouraging more direct approaches as the truck gets closer to the goal.
-        cost_weight: 10.0 #7.0  # Increase to place a higher emphasis on moving directly towards the goal when in proximity, suitable for ensuring efficient navigation in off-road conditions.
+        cost_weight: 30.0 #7.0  # Increase to place a higher emphasis on moving directly towards the goal when in proximity, suitable for ensuring efficient navigation in off-road conditions.
       # # CostCritic: # For some reason using this set of parameters below avoid tuck start the gps following feature...
       # #   enabled: true
       #   # cost_weight: 4.0  # Higher weight prioritizes avoidance of high-cost areas, crucial for off-road navigation where obstacles can be unpredictable.
@@ -427,63 +649,29 @@ controller_server:
       #   # inflation_layer_name: ""   # Specify if using multiple inflation layers and a particular one is needed for cost calculations.
       PathAlignCritic:
         enabled: true
-        cost_weight: 30.0 #Valores baixos permissividade para desalinhar (translação) e procurar caminhos alternativos #12.0  # Higher weight on path alignment to ensure efficient navigation along the planned global path in off-road terrain.
-        cost_power: 1     # Quadratic cost scaling to more heavily penalize deviations from the path, promoting tighter adherence to the route.
+        cost_weight: 50.0 #Valores baixos permissividade para desalinhar (translação) e procurar caminhos alternativos #12.0  # Higher weight on path alignment to ensure efficient navigation along the planned global path in off-road terrain.
+        cost_power: 1 #2     # Quadratic cost scaling to more heavily penalize deviations from the path, promoting tighter adherence to the route.
         threshold_to_consider: 1.0  # Increased distance for path alignment focus, accommodating the truck's size and the navigational challenges of off-road terrain.
         offset_from_furthest: 1 #2  # Adjusted to ensure path alignment is considered earlier, aiding in consistent path tracking in variable off-road conditions.
         max_path_occupancy_ratio: 0.15 #Flexibilidade que de mudar de caminho baseado na taxa de obstaculo. Quanto menor taxa mais sensivel ao obstaculo é e mais recalculo de rota #0.1  # A slightly higher tolerance for path occupancy, allowing for dynamic obstacle negotiation without losing path alignment.
         use_path_orientations: true  # Enables consideration of path orientations, enhancing directional fidelity to the planned path, essential for complex off-road routes.
       PathAngleCritic:
         enabled: true
-        cost_weight: 15.0 #3.6  #valores altos mais estabilidade (menor estarçamento, menos balanço- "Volante mais duro"), mais alinhamento reto, menos capacidade desviar # Enhances path angle alignment in complex off-road terrains, aiding in precise maneuvering and turns.
-        cost_power: 1 #(valor mais baixo "amacia" o volante, mais alto "endurece")     # Applies quadratic scaling to penalize significant deviations from the path's angle, promoting closer adherence.
+        cost_weight: 80.0 #3.6  #valores altos mais estabilidade (menor estarçamento, menos balanço- "Volante mais duro"), mais alinhamento reto, menos capacidade desviar # Enhances path angle alignment in complex off-road terrains, aiding in precise maneuvering and turns.
+        cost_power: 3 #(valor mais baixo "amacia" o volante, mais alto "endurece")     # Applies quadratic scaling to penalize significant deviations from the path's angle, promoting closer adherence.
         threshold_to_consider: 1.0  # Allows for path angle adjustments from a greater distance, facilitating smoother approach and alignment.
         offset_from_furthest: 1 #2  # Ensures path angle considerations are applied sooner, enhancing the vehicle's ability to align with upcoming turns.
         max_angle_to_furthest: 0.5  # Adopts a more lenient angle threshold for considering path alignment, accommodating the need for wider turns in off-road environments.
         mode: 2  # Prioritizes following the path in the requested direction, essential for effective navigation in off-road settings with specific directional requirements.
       PreferForwardCritic:
         enabled: true
-        cost_weight: 20.0 #6.0  # Enhances the preference for forward movement, crucial for a truck's navigation efficiency and safety in off-road environments.
-        cost_power: 2     # Implements quadratic cost scaling to more significantly penalize reversing, promoting a forward direction of travel.
+        cost_weight: 50.0 #6.0  # Enhances the preference for forward movement, crucial for a truck's navigation efficiency and safety in off-road environments.
+        cost_power: 4 #2     # Implements quadratic cost scaling to more significantly penalize reversing, promoting a forward direction of travel.
         threshold_to_consider: 1.0  # Ensures forward movement is prioritized until the truck is within a practical distance to the goal, suitable for the vehicle's larger turning requirements.
       #TwirlingCritic: #DISABLE IT AFTER REMOVING SPINNING FROM 'RECOVERY BEHAVIORS' since nonholomic robots do not SPIN!
       #   enabled: true  # Enabled to apply a penalty for twirling movements, with the aim of discouraging spinning.
       #   cost_weight: 20.0  # High weight to significantly penalize spinning movements during path planning.
       #   cost_power: 1      # Linear penalty to ensure consistent discouragement of unnecessary rotations.
-
-# controller_server:
-#   ros__parameters:
-#     controller_frequency: 10.0
-#     controller_plugins: ["FollowPath"]
-#     FollowPath:
-#       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-
-#       # (seus parâmetros aqui)
-#       desired_linear_vel: 22.0
-#       max_linear_accel: 2.0
-#       min_lookahead_dist: 6.0
-#       max_lookahead_dist: 20.0
-#       lookahead_time: 2.0
-#       rotate_to_heading_angular_vel: 0.4
-#       use_velocity_scaled_lookahead_dist: true
-#       transform_tolerance: 0.4
-#       use_rotate_to_heading: true
-#       allow_reversing: false
-#       use_approach_linear_velocity_scaling: true
-#       approach_velocity_scaling_dist: 3.0
-#       use_collision_detection: true
-#       max_allowed_time_to_collision: 1.0
-
-#     progress_checker:
-#       plugin: "nav2_controller::SimpleProgressChecker"
-#       required_movement_radius: 0.2
-#       movement_time_allowance: 60.0
-
-#     goal_checker:
-#       plugin: "nav2_controller::SimpleGoalChecker"
-#       xy_goal_tolerance: 2.0
-#       yaw_goal_tolerance: 0.8
-#       stateful: True
 
 
 smoother_server:
@@ -546,3 +734,5 @@ velocity_smoother:
     odom_duration: 0.1  # Sets the duration to consider for odometry feedback.
     deadband_velocity: [0.0, 0.0, 0.0]  # Sets the deadband for velocity to zero, ensuring no minimum threshold.
     velocity_timeout: 1.0  # Sets the timeout for velocity commands to 1 second.
+
+
