@@ -20,9 +20,11 @@ ea687e1c58c0748493218305afc6d894c687a611 security: remove committed map credenti
 f2d249cc14df258a7102daf98e03bab2bfee0e25 docs: record license provenance, publication assets and validation limits
 ```
 
-This report is added by the final `docs: add complete owner review handoff` commit.
-Its immutable SHA is supplied in the completion message; the complete branch log
-is available with `git log --reverse --oneline 2eb40fd..HEAD`.
+This report was added in commit
+`61d8d7864dfdc19e5c3d21f16ee0a4ce1f4b7d13 docs: add complete owner review handoff`.
+The completion message lists all commits, including the documentation-link
+validation follow-up. The complete branch log is also available with
+`git log --reverse --oneline 2eb40fd..HEAD`.
 
 ## SECURITY
 
@@ -93,7 +95,7 @@ Expect `/navigate_through_poses` with `nav2_msgs/action/NavigateThroughPoses`,
 `/fromLL` with `robot_localization/srv/FromLL`, an active navigator, GPS fixes
 near latitude −22.6179 / longitude −47.5022, updating odometry and a coherent TF
 chain. `tf2_echo` continues until **Ctrl+C**. If a command waits indefinitely,
-check [Known limitations](docs/KNOWN_LIMITATIONS.md); do not interpret an active
+check [Known limitations](KNOWN_LIMITATIONS.md); do not interpret an active
 process as successful localization. In particular, inspect `ros2 topic list` if
 `/gps/fix` is absent: the retained model contains conflicting GPS output remaps.
 
