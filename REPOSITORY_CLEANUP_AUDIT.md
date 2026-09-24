@@ -72,8 +72,8 @@ successful ROS runtime validation.
 A CMake wildcard installation was not treated as proof that a script belonged to
 the paper. The current truck package explicitly installs three entry points;
 the lane package installs five. No current launch imports historical Python
-variants or invokes a setup.py console script. The two front-cabin plugin XML
-references and C++ target were checked together; the unbuilt wall plugin was
+variants or invokes a setup.py console script. The front-cabin plugin XML,
+controller YAML and C++ target were checked together; the unbuilt wall plugin was
 not mistaken for an exported implementation.
 
 ## Retained questionable research assets/configurations

@@ -2,9 +2,9 @@
 
 Audit baseline: `2eb40fd44b48baa31b31dcd1047ab89f8a128c3b` (2026-09-24 review).
 
-The nonempty Bing Maps credential was removed from both current copies of
+The first security commit removed the nonempty Bing Maps credential from both then-current copies of
 `truck_bringup/params/patio_mercedes.mvc` (the root copy and the copy under
-`src/gps_truck_nav/`). Each now contains an empty `bing_api_key`. No credential
+`src/gps_truck_nav/`). The canonical surviving copy contains an empty `bing_api_key`; the redundant root copy was subsequently removed during canonicalization. No credential
 value is reproduced in this report. The default `gps_wpf_demo.mvc` already had
 an empty key. Mapviz is optional; Gazebo, localization and Nav2 do not require it.
 
