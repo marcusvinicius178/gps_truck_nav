@@ -1,24 +1,17 @@
-LICENSING STATUS — MIXED PROVENANCE RESEARCH REPOSITORY
+# Licensing
 
-This file records scope; it does not grant a new blanket license or relicense
-third-party material.
+Existing per-file copyright notices and license terms remain in force.
 
-Existing per-file copyright notices and license terms remain in force. The
-truck_bringup and nav_virtual_lanes package manifests declare Apache-2.0. A copy
-of the Apache License 2.0 is provided in LICENSES/Apache-2.0.txt for components to
-which that license applies.
+The current `truck_bringup` and `nav_virtual_lanes` package manifests declare
+Apache-2.0. A copy of the Apache License 2.0 is provided in:
 
-Historical truck_bringup/setup.py declared MIT while package.xml declared
-Apache-2.0. Those conflicting records do not establish permission to assign one
-license to every file. The inactive metadata is preserved under historical/.
+```text
+LICENSES/Apache-2.0.txt
+```
 
-The experimental nav_virtual_lanes_planner previously had no resolved license.
-LicenseRef-Provenance-Review-Required is a status marker, not a license grant.
-Imagery, heightmaps, meshes, CAD-derived content, marks and adapted external
-utilities require the provenance review described in THIRD_PARTY_NOTICES.md and
-PUBLICATION_ASSET_AUDIT.md. A code-package license does not establish rights to
-those assets. Rights for unresolved material must be confirmed by its rights
-holder before redistribution outside any applicable existing permission.
+Files or components that carry their own copyright or license notices remain
+subject to those notices. Third-party dependencies and assets are not relicensed
+by this repository; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-No license is inferred from public GitHub availability or from a model export
-tool's metadata. Dataset licensing is governed separately by the Zenodo record.
+The Zenodo research dataset is distributed separately and is governed by the
+license specified on the Zenodo record.
