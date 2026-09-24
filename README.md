@@ -354,7 +354,8 @@ historical simulated run.
 
 See [Validation](docs/VALIDATION.md), [Known limitations](docs/KNOWN_LIMITATIONS.md),
 [publication asset audit](PUBLICATION_ASSET_AUDIT.md) and
-[cleanup audit](REPOSITORY_CLEANUP_AUDIT.md).
+[cleanup audit](REPOSITORY_CLEANUP_AUDIT.md). The complete owner handoff is in
+[OWNER_REVIEW_REPORT.md](docs/OWNER_REVIEW_REPORT.md).
 
 ## Citation, authors and contact
 
