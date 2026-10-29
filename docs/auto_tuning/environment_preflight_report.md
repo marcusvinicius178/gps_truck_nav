@@ -2,7 +2,7 @@
 
 ## Decisão
 
-**Fase A: auditoria e preparação concluídas; reprodutibilidade do runtime ainda não demonstrada.** Gate 0 e Gate 1: **NOT YET VERIFIED / REQUIRES LOCAL EXECUTION**. Existe caminho plausível com Docker/Iron/Classic, mas não há base para anunciar build, navegação ou otimização bem-sucedidos.
+**HOST PREFLIGHT APROVADO para ipt-sim-01; reprodutibilidade do runtime ainda não demonstrada.** Gate 0 e Gate 1: **NOT YET VERIFIED / REQUIRES LOCAL EXECUTION**. Existe caminho plausível com Docker/Iron/Classic, mas não há base para anunciar build, navegação ou otimização bem-sucedidos.
 
 O relatório `auto_tuning_feasibility_report.md`, de 14/10/2026, foi localizado e lido integralmente. Sua decisão CONDITIONAL GO permanece: os requisitos de execução e reset ainda estão abertos. Nenhum bag histórico, tese ou Overleaf foi modificado.
 
@@ -22,6 +22,7 @@ O avanço desta iteração é código de preparação, auditoria específica de 
 | Classificação | Evidência |
 |---|---|
 | VERIFIED BY EXECUTION | Clone dos dois repositórios, `git lfs pull`, `git lfs fsck`, audit estrutural, testes Python e diagnóstico real deste Work. |
+| PROVIDED HOST EVIDENCE / REVIEWER APPROVED | JSON de ipt-sim-01 executado pelo proprietário, lido integralmente; resumo em `host_preflight_ipt_sim_01.md`. Não é execução remota pelo agente. |
 | VERIFIED BY STATIC INSPECTION | Launch headless, dependências, configuração EKF/TF, plugin custom, schema do avaliador, source Iron dos knobs e filtros. |
 | PROPOSED BUT NOT TESTED | Imagem Docker nova, overlay de localização, opt-out do TF legacy em ROS, probes no container, candidatos A/B e extração de MCAP real em Iron. |
 | BLOCKED / REQUIRES LOCAL EXECUTION | Pull da imagem-base, resolução APT, build C++, plugin loading, sensores/TF/lifecycle, missão, gravação, métricas reais e reset automático. |
@@ -83,6 +84,8 @@ A avaliação core preserva PR≥0,90 para geometric success, PR≥0,70 para mis
 
 ## Host e capacidade deste Work
 
+**Host alvo aprovado:** ipt-sim-01 tem Ubuntu 22.04.5 x86_64, 32 CPUs lógicas, 60,3 GiB RAM (40,8 disponíveis na coleta), 366,6 GiB livres no filesystem de Downloads, Docker 29.8.2/Compose 5.5.1 e Git/LFS existentes. Daemon local respondeu. Humble permanece intacto. Ausência de Gazebo no PATH do host não exige instalá-lo fora da imagem. NVIDIA/DRM presentes não provam renderer operacional. O próximo helper mede separadamente o disco do Docker; os 366,6 GiB não se aplicam automaticamente a ele.
+
 Diagnóstico observado: Ubuntu 24.04.3 x86_64, quota cgroup 8 cores/8 GiB; sem Docker CLI/daemon, ROS, Gazebo, CMake ou `/opt/ros`. Não existe acesso à máquina Linux de Marcus. Disponibilidade de CPU e disco por si só não fornece o runtime requerido.
 
 Requisitos funcionais do host: Docker Linux local, amd64 inicialmente, permissão de execução de containers, internet para build/LFS, disco para imagem/modelos/bags e backend de renderização se os sensores precisarem. Não é necessário servidor X para clientes desativados, mas servidor de simulação ainda precisa ser testado.
@@ -91,7 +94,7 @@ Requisitos funcionais do host: Docker Linux local, amd64 inicialmente, permissã
 
 ## Caminho mais curto e fontes
 
-Executar `host_preflight.py` no host → confirmar Docker/LFS → build da imagem de descoberta → bringup sem missão e revisão TF/sensores/BT → resolver interface yaw-rate/esterçamento e validar atuação controlada → congelar missão/referência/velocidade → Gate 0 com bag/métricas → implementar e executar o supervisor de duas configurações → parar para revisão independente. A preparação não elimina essas dependências.
+Host/Docker/LFS já diagnosticados e aprovados → `local_phase_a.py build` em checkout novo → smoke checks da imagem → `local_phase_a.py probe` com Xvfb/Mesa e rede isolada → revisão TF/sensores/BT e resolução da interface yaw-rate/esterçamento → congelar missão/referência/velocidade → Gate 0 com bag/métricas → implementar e executar o supervisor de duas configurações → parar para revisão independente. A preparação não elimina essas dependências. O runbook não instala nada no host nem reutiliza CARLA/Autoware.
 
 Fontes primárias:
 

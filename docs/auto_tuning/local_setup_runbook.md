@@ -1,186 +1,173 @@
-# Preparação local — Fase A, 29/10/2026
+# Preparação local — ipt-sim-01, continuação da Fase A
 
-**Estado: PROPOSED BUT NOT TESTED no ROS/Docker.** Os testes Python são separados da validação ROS. Este roteiro prepara um ambiente prospectivo; não reproduz automaticamente o runtime privado nem aprova Gates 0/1. Não instalar ROS no host nesta etapa. Primeiro executar apenas o diagnóstico da seção 1 e retornar o JSON.
+**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT YET VERIFIED.** O próximo passo é construir uma imagem isolada Iron/Classic e verificar seu bringup sem enviar missão. Esta revisão substitui as instruções anteriores de instalação do host.
 
-## 1. Diagnóstico imediato, sem instalar nada
+## 1. Ambiente confirmado e isolamento
 
-Pré-requisitos: Linux e Python 3. Se o arquivo `host_preflight.py` foi baixado para `~/Downloads`, executar no terminal do computador que rodará a simulação:
+O `host_preflight.json` coletado em 29/10/2026 às 16:00:40 (São Paulo) foi lido integralmente. Ele confirma Ubuntu 22.04.5 x86_64, Python 3.10.12, 32 CPUs lógicas, 60,3 GiB RAM (40,8 GiB disponíveis naquele instante), Docker Engine 29.8.2, Compose 5.5.1 e daemon em `unix:///var/run/docker.sock`. Git/LFS estão presentes. ROS 2 Humble existe no host; Gazebo não está no PATH do host. Esses fatos são compatíveis com a preparação pelo Docker.
 
-```bash
-cd "$HOME/Downloads"
-diagnostic_dir=$(mktemp -d "$HOME/nav2-host-diagnostic.XXXXXXXX")
-python3 host_preflight.py --probe-docker --output "$diagnostic_dir/host_preflight.json"
-printf 'Enviar este arquivo: %s\n' "$diagnostic_dir/host_preflight.json"
-```
+Os 366,6 GiB livres pertencem ao filesystem de Downloads. O helper mede separadamente o diretório de evidências e DockerRootDir; Docker 29 também pode usar image store containerd, com caminho padrão `/var/lib/containerd` separado. Quando acessível, esse caminho é medido como candidato padrão, não como prova de que não há uma configuração customizada. Falta de acesso fica registrada como desconhecida. `docker system df` não substitui espaço livre do filesystem.
 
-Se o checkout de engenharia já existe, executar na raiz dele, acrescentando `--repo .`. Ausência de ROS/Gazebo no host é aceitável com Docker. O script não instala pacotes nem inicia containers; o exit code 0 significa apenas que coletou o diagnóstico. Não há acesso remoto ao computador por este Work.
+Não há instalação ou atualização de Docker, ROS, drivers, pacotes apt/pip, ambientes Python ou shell no host. Os comandos usam `/usr/bin/python3 -I` e stdlib. Humble, CARLA e Autoware permanecem em seus diretórios e containers atuais. O workspace desta atividade será novo e não terá mounts de nenhum ambiente existente.
 
-## 2. Preparar Ubuntu e Docker, somente após conhecer o diagnóstico
+O helper fixa o daemon local e o builder `default` nos subprocessos, neutralizando overrides de contexto/builder sem editar a configuração global. Runtime usa imagem por ID, rede `none`, sem portas publicadas, host networking, GPU, dispositivos, X11, privilégios ou socket Docker montados. O probe recebe quota de 8 CPUs, limite de 16 GiB, sem swap adicional, 2048 PIDs e 1 GiB de shared memory. Essas quotas não reservam CPUs nem garantem desempenho de aplicações concorrentes. O build limita CMake/Make a quatro jobs e colcon a um pacote por vez; isso **não** é um teto global de CPU/RAM para BuildKit/APT.
 
-Alvo inicial: host Linux x86_64; container Ubuntu 22.04/Iron. Host Ubuntu 22.04 ou 24.04 é uma opção direta. Não substituir a distribuição ROS. Como orçamento de planejamento, reservar 16 GiB RAM, 4+ cores e 50 GiB livres; 32 GiB/8 cores/100 GiB oferecem folga. **Não são mínimos medidos**: o piloto precisa medir RAM, CPU, disco, real-time factor e prazos do controller. O disco adicional depende de MCAP, imagens e duração.
+Renderização inicial: Xvfb+xauth+Mesa na imagem, `LIBGL_ALWAYS_SOFTWARE=1`. É uma proposta para diagnosticar os sensores sem compartilhar a GPU; funcionamento de câmera/OpenGL no Gazebo ainda precisa ser observado. Não desabilitar sensores ou alterar o mundo para obter um resultado aparente.
 
-Em terminal no host, diretório `$HOME`; pré-requisitos: Ubuntu suportado, internet e sudo. Instalar ferramentas de preparação:
+## 2. Agora: checkout novo, modelos e build
 
-```bash
-cd "$HOME"
-sudo apt-get update
-sudo apt-get install -y git git-lfs python3 python3-yaml ca-certificates curl
-```
+**Diretório inicial:** `$HOME`. **Pré-requisitos já confirmados:** Git, Git LFS, Python 3 e acesso ao Docker local sem sudo. É necessária conexão para GitHub, registry e APT dentro do build. Não executar `source /opt/ros/...` no host.
 
-Se Docker já funciona, não reinstalar. Para uma **instalação nova**, sem Docker/containerd/runc existentes, os comandos abaixo configuram o repositório oficial. Se já houver pacotes conflitantes, resolver sua coexistência antes; este roteiro não remove serviços existentes automaticamente.
+Execute o bloco completo em um terminal do `ipt-sim-01`. Ele cria um diretório exclusivo e mantém `task_root` no terminal para os blocos seguintes. Em caso de erro, os passos posteriores dentro dos parênteses não são executados; os logs já gravados permanecem.
 
 ```bash
 cd "$HOME"
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-ubuntu_codename=$(. /etc/os-release && printf '%s' "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
-host_arch=$(dpkg --print-architecture)
-sudo tee /etc/apt/sources.list.d/docker.sources >/dev/null <<EOF
-Types: deb
-URIs: https://download.docker.com/linux/ubuntu
-Suites: ${ubuntu_codename}
-Components: stable
-Architectures: ${host_arch}
-Signed-By: /etc/apt/keyrings/docker.asc
-EOF
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo systemctl start docker
-sudo docker version
-sudo docker compose version
-```
-
-Fonte consultada em 29/10/2026: <https://docs.docker.com/engine/install/ubuntu/>. Nos próximos comandos, usar `sudo docker` se o usuário ainda não possui acesso ao daemon local. Não é necessário conceder acesso ao grupo Docker para executar este roteiro. Os comandos abaixo usam explicitamente o socket local `/var/run/docker.sock`; Docker rootless precisa de seu socket real, conforme diagnóstico.
-
-## 3. Checkout novo e modelos LFS
-
-Diretório inicial `$HOME`; pré-requisitos: Git/LFS/PyYAML instalados e diretório de destino ainda inexistente. Não executar estes comandos sobre um workspace antigo com alterações.
-
-```bash
-cd "$HOME"
-set -euo pipefail
-mkdir nav2_autotuning_20261029
-cd nav2_autotuning_20261029
-GIT_LFS_SKIP_SMUDGE=1 git clone --branch engineering/2026-10-preflight-gates \
-  https://github.com/marcusvinicius178/gps_truck_nav.git
-git clone https://github.com/marcusvinicius178/nav2_paper_scripts.git
-git -C nav2_paper_scripts checkout --detach 36ba76823cc7a124540412cf3ce09c73e6cd1d05
-cd gps_truck_nav
-git lfs install --local
-git lfs pull
-git lfs fsck
-python3 tools/audit_repository.py
-python3 -m unittest discover -s tests -v
-```
-
-As sete meshes LFS representam 277.750.112 bytes de payload único. O clone Git sem `lfs pull` não basta. O build deve parar se o audit identificar ponteiros. Os arquivos completos desta entrega estão no branch indicado; nenhuma inserção manual em arquivos é necessária.
-
-## 4. Build de descoberta e congelamento
-
-Na raiz `~/nav2_autotuning_20261029/gps_truck_nav`; pré-requisitos: audit aprovado, Docker local acessível, internet, LFS hidratado. Executar o bloco inteiro no mesmo terminal. Ele não inicia uma missão.
-
-```bash
-cd "$HOME/nav2_autotuning_20261029/gps_truck_nav"
-set -euo pipefail
-session_dir=$(mktemp -d "$HOME/nav2-preflight.XXXXXXXX")
-git rev-parse HEAD > "$session_dir/integration_commit.txt"
-git -C ../nav2_paper_scripts rev-parse HEAD > "$session_dir/analysis_commit.txt"
-git status --porcelain > "$session_dir/source_status.txt"
-test ! -s "$session_dir/source_status.txt"
-sudo docker --host unix:///var/run/docker.sock pull osrf/ros:iron-desktop-full \
-  2>&1 | tee "$session_dir/base_pull.log"
-base_digest=$(sudo docker --host unix:///var/run/docker.sock image inspect \
-  osrf/ros:iron-desktop-full --format '{{index .RepoDigests 0}}')
-case "$base_digest" in
-  osrf/ros@sha256:*) ;;
-  *) printf 'RepoDigest inesperado; interromper e revisar: %s\n' "$base_digest" >&2; exit 1 ;;
-esac
-printf '%s\n' "$base_digest" > "$session_dir/base_digest.txt"
-sudo docker --host unix:///var/run/docker.sock build --progress=plain \
-  --build-arg ROS_BASE="$base_digest" \
-  --iidfile "$session_dir/image_id.txt" \
-  -f docker/auto_tuning/Dockerfile . 2>&1 | tee "$session_dir/build.log"
-image_id=$(cat "$session_dir/image_id.txt")
-sudo docker --host unix:///var/run/docker.sock run --rm --network none \
-  --entrypoint cat "$image_id" /ws/installed-packages.tsv > "$session_dir/installed-packages.tsv"
-sudo docker --host unix:///var/run/docker.sock image inspect "$image_id" > "$session_dir/image_inspect.json"
-python3 tools/auto_tuning/host_preflight.py --repo . --output "$session_dir/host_preflight.json"
-python3 tools/auto_tuning/prepare_candidates.py \
-  --source src/gps_truck_nav/truck_bringup/params/truck_nav2_params.yaml \
-  --output-dir "$session_dir/candidates"
-printf 'Evidências e candidatos: %s\n' "$session_dir"
-```
-
-O Dockerfile novo compila somente `truck_bringup` contra Nav2 binário Iron instalado e inclui explicitamente MCAP. Não executa `vcs import`, não compila Virtual Lanes e não mistura o SHA Nav2 opcional com binários. Seu `.dockerignore` próprio inclui as fontes, pois o `.dockerignore` original as exclui. `BUILD_TESTING=OFF` aplica-se ao build de descoberta; validação do plugin em runtime continua obrigatória.
-
-**O digest da base não congela o APT.** A primeira imagem resolve pacotes disponíveis naquele momento. Registrar a lista instalada e conservar a imagem resultante é necessário para repetir o mesmo runtime. Antes de comparar candidatos, preservar a imagem no mesmo terminal (requer espaço adicional):
-
-```bash
-sudo docker --host unix:///var/run/docker.sock image save "$image_id" | gzip > "$session_dir/runtime-image.tar.gz"
-sha256sum "$session_dir/runtime-image.tar.gz" > "$session_dir/runtime-image.tar.gz.sha256"
-```
-
-Se `pull` ou APT falhar, enviar log; não trocar Iron, eliminar assinatura APT, remover dependências ou declarar indisponibilidade total com base em uma falha. Um lock de pacotes/repositório de artefatos para rebuild independente ainda será necessário. A imagem local salva dá replay do runtime, não prova rebuild bit a bit da receita.
-
-## 5. Bringup diagnóstico isolado, sem missão
-
-Pré-requisitos: build concluído; manter `session_dir` e `image_id` da seção 4. O container é novo, sem rede externa, sem volumes de build antigos, sem dados históricos e sem X11. O nome único evita interferir em outro experimento.
-
-```bash
-cd "$HOME/nav2_autotuning_20261029/gps_truck_nav"
+task_root=$(mktemp -d "$HOME/nav2-phase-a-ipt-sim-01.XXXXXXXX")
+printf 'Diretório desta execução: %s\n' "$task_root"
 (
-  set -Eeuo pipefail
-  container_name="nav2-preflight-$(basename "$session_dir")"
-  cid_file="$session_dir/container.id"
-  test ! -e "$cid_file"
-  cleanup() {
-    result_code=$?
-    trap - EXIT INT TERM
-    if [[ -s "$cid_file" ]]; then
-      container_id=$(cat "$cid_file")
-      sudo docker --host unix:///var/run/docker.sock logs "$container_id" > "$session_dir/bringup.log" 2>&1 || true
-      sudo docker --host unix:///var/run/docker.sock inspect "$container_id" > "$session_dir/container_before_stop.json" || true
-      sudo docker --host unix:///var/run/docker.sock stop --time 20 "$container_id" || result_code=1
-      sudo docker --host unix:///var/run/docker.sock inspect "$container_id" > "$session_dir/container_after_stop.json" || result_code=1
-      stopped_state=$(sudo docker --host unix:///var/run/docker.sock inspect \
-        --format '{{.State.Running}} {{.State.Pid}}' "$container_id") || result_code=1
-      printf 'Estado após parada: %s\n' "$stopped_state"
-      [[ "$stopped_state" == 'false 0' ]] || result_code=1
-    fi
-    exit "$result_code"
-  }
-  trap cleanup EXIT
-  trap 'exit 130' INT
-  trap 'exit 143' TERM
-  sudo docker --host unix:///var/run/docker.sock run -d --init \
-    --cidfile "$cid_file" --name "$container_name" --network none --shm-size=1g \
-    -e ROS_LOCALHOST_ONLY=1 -e ROS_DOMAIN_ID=71 \
-    --mount "type=bind,src=$session_dir,dst=/evidence" \
-    "$image_id" ros2 launch truck_bringup gps_waypoint_follower.launch.py \
-    use_gzclient:=false use_rviz:=false use_mapviz:=false use_gpu:=false use_xcb:=false \
-    publish_legacy_cloud_tf:=false \
-    localization_params_file:=/opt/auto_tuning/config/dual_ekf_navsat_gate0.yaml
-  container_id=$(cat "$cid_file")
-  sudo docker --host unix:///var/run/docker.sock exec "$container_id" /entrypoint.sh \
-    bash /opt/auto_tuning/tools/collect_runtime_evidence.sh /evidence/runtime_probe
+  set -euo pipefail
+  GIT_LFS_SKIP_SMUDGE=1 git clone \
+    --branch engineering/2026-10-preflight-gates \
+    https://github.com/marcusvinicius178/gps_truck_nav.git \
+    "$task_root/gps_truck_nav"
+  cd "$task_root/gps_truck_nav"
+  git lfs install --local
+  git lfs pull 2>&1 | tee "$task_root/lfs_pull.log"
+  git lfs fsck 2>&1 | tee "$task_root/lfs_fsck.log"
+  git rev-parse HEAD > "$task_root/checkout_commit.txt"
+  /usr/bin/python3 -I tools/auto_tuning/local_phase_a.py build \
+    --repo "$task_root/gps_truck_nav" \
+    --output-dir "$task_root/build"
 )
 ```
 
-O coletor faz probes sequenciais com timeout de 15 s; pode levar vários minutos. `tf2_echo` normalmente termina por timeout após coletar amostras. Logs podem ser escritos como root no diretório montado; leitura permanece possível. A coleta deve ser revisada: clock avançando, covariâncias/frames, única autoridade TF, pose inicial, GPS convertido, lifecycle e parâmetros efetivos. `false 0` ao final é evidência de parada do container, mas **não demonstra sozinho reset ROS/Gazebo entre duas missões**. Manter o container parado até revisar os logs; não usar `docker system prune` nem comandos globais de kill.
+Nenhum arquivo de código precisa ser montado por trechos ou inserido manualmente. Os arquivos completos estão no branch da PR #2. Não é preciso clonar o repositório de análise nesta etapa sem missão. Não atualizar esse checkout depois do build: o helper vincula imagem, commit, tree e hashes dos inputs; o probe recusa uma fonte diferente. Arquivos de evidência ficam fora do checkout para que sua integridade possa ser verificada.
 
-O trap tenta finalizar somente o ID criado mesmo quando o probe falha. Se o host/terminal for encerrado à força, recuperar o diretório de evidências da seção 4 e parar apenas o ID salvo:
+O estágio `build`:
+
+1. Confere fonte limpa, assets LFS, daemon/builder locais e registra as capacidades de disco observáveis.
+2. Faz pull de `osrf/ros:iron-desktop-full` para `linux/amd64` e resolve o RepoDigest real.
+3. Constrói a receita `docker/auto_tuning/Dockerfile` usando esse digest, sem tag de imagem compartilhada ou volumes antigos. Compila somente `truck_bringup` contra Nav2 binário Iron; não executa `vcs import`.
+4. Registra image ID/inspect e lista de pacotes, e executa `validate_image.sh` em um container próprio sem rede externa.
+5. Confere Ubuntu 22.04, Iron, Gazebo 11, imports, registro reader/writer MCAP, prefixos de pacotes, biblioteca local e suas dependências, declaração plugin XML e parsing de `ros2 launch --show-args`.
+6. Preserva logs/estado e finaliza somente o container criado, inclusive em falha/timeout ou primeira interrupção durante o trabalho. Interrupção durante o próprio cleanup pode exigir a recuperação da seção 4. Não remove containers/imagens de outros projetos nem executa prune.
+
+`IMAGE_VALIDATED` em `build/status.json` significa build e smoke checks da imagem concluídos. Não significa que Gazebo/Nav2 iniciaram ou que pluginlib, sensores, TF e navegação funcionam. Erro de rede/APT/build/checagem fica no status e nos logs; não trocar Iron, remover verificação de assinatura ou instalar dependências no host para contornar uma falha.
+
+O helper imprime o caminho de cada log; a saída extensa de pull/build fica nesses arquivos. Para acompanhar o build em outro terminal, atribuir o caminho impresso a `task_root` e executar `tail -f "$task_root/build/build.log"` depois que o arquivo existir. Interromper apenas o `tail` não interrompe o build.
+
+**Primeiro ponto de retorno:** se o build falhar, envie `build/status.json`, `build/commands.jsonl` e os logs indicados. Não executar o probe com uma imagem diferente escolhida manualmente.
+
+## 3. Depois de IMAGE_VALIDATED: bringup headless diagnóstico
+
+**Diretório de trabalho:** o mesmo checkout novo. **Pré-requisitos:** `task_root` mantido no terminal, `build/status.json` aprovado pelo smoke check, imagem existente no daemon local e checkout intacto. Em outro terminal, recupere o caminho impresso na seção 2 e atribua-o a `task_root` antes de continuar; não escolha arbitrariamente um build antigo.
 
 ```bash
-container_id=$(cat "$session_dir/container.id")
-sudo docker --host unix:///var/run/docker.sock logs "$container_id" > "$session_dir/bringup_failure.log" 2>&1
-sudo docker --host unix:///var/run/docker.sock stop --time 20 "$container_id"
+cd "$task_root/gps_truck_nav"
+/usr/bin/python3 -I tools/auto_tuning/local_phase_a.py probe \
+  --repo "$task_root/gps_truck_nav" \
+  --build-dir "$task_root/build" \
+  --output-dir "$task_root/probe"
 ```
 
-O overlay é uma hipótese de reparo: Gazebo publica `odom → base_footprint`; EKF global publica `map → odom`; EKF local só fornece `/odometry/local`; URDF fornece `base_link → cloud`. Validar no mundo real da simulação, inclusive covariance, timestamps e consistência entre odometria local e TF Gazebo. Não substituir o baseline congelado sem registrar o overlay.
+Esse estágio confere a imagem e a fonte, cria um container novo com limites e rede isolada, inicia Xvfb/Gazebo/localização/Nav2 sem RViz/Mapviz/gzclient, usa o overlay prospectivo de localização e `publish_legacy_cloud_tf:=false`, aguarda somente um aquecimento limitado e coleta probes. Ele **não espera prontidão para enviar goals**, não inicia recorder/mission sender/optimizer, não injeta comandos Twist e não altera raios/footprint/limites físicos.
 
-## 6. Próxima etapa após o bringup
+A coleta tem timeouts e pode durar vários minutos. `tf2_echo` costuma atingir seu timeout após coletar amostras; é necessário ler o log, não interpretar esse exit code isoladamente como erro ou aprovação. O helper registra stdout/stderr do bringup, logs do Xvfb, inspect anterior/posterior e confirma parada `Running=false`, `Pid=0` do ID que criou. Containers próprios ficam parados para inspeção; não são removidos automaticamente.
 
-Enviar `host_preflight.json`, `build.log`, `installed-packages.tsv`, `bringup.log` e `runtime_probe/`, além dos dois JSONs de estado do container. Não enviar os 212 bags históricos. Antes de qualquer goal, verificar a interface Ackermann instalada: no plugin Gazebo upstream 3.7.0, `Twist.angular.z` representa esterçamento, enquanto MPPI fornece yaw rate. O caminho público não mostra conversor. Resolver essa interface com geometria validada, os frames de antena/IMU e o BT; depois fechar associação missão/referência, wheelbase equivalente do avaliador e limites de prontidão.
+`OBSERVATIONS_COLLECTED` significa somente coleta e encerramento concluídos. Sensores, TF, lifecycle, parâmetros e estado dos processos precisam ser revisados; várias consultas podem ter falhado. Um processo de launch vivo não basta para provar que gzserver e componentes Nav2 continuaram vivos. Nenhum status desta etapa aprova Gate 0/1.
 
-As etapas exatas de Gate 0/1 e as pendências de implementação estão em `gate0_gate1_plan.md`. **Não existe nesta entrega um runner fim a fim aprovado**; há diagnóstico, candidatos, overlay e adaptador de métricas. A operação local acima é bringup diagnóstico, não Gate 0 nem Gate 1.
+Se houver falta de RAM, erro de software rendering, OOM ou falha de imagem, preservar logs. Não alterar drivers NVIDIA, habilitar `--privileged`, usar rede do host ou reiniciar Docker. Uma eventual alternativa de renderização deve ser uma alteração explícita e revisada do ambiente.
+
+## 4. Evidências e recuperação
+
+O helper salva `status.json`, `source_manifest.json`, `commands.jsonl` e logs por comando em cada saída. Build também preserva `image_id.txt`, `image_inspect.json` e `installed-packages.tsv`. Probe inclui `runtime_probe/`, `bringup.log`, `xvfb.log` quando gerado, `container.id`, `container_before_stop.json` e `container_after_stop.json`. Os IDs são específicos desta execução. Nunca usar `pkill`, `docker stop $(docker ps ...)`, `docker system prune`, remoção de volumes compartilhados ou reset global.
+
+Se o terminal/host for encerrado à força ou ocorrer outra interrupção durante o cleanup, ele pode não concluir. Recuperar o diretório correto e usar o procedimento explícito de emergência descrito abaixo somente para o ID salvo. São conferidos o label do projeto e o identificador da tentativa:
+
+```bash
+(
+  set -euo pipefail
+  stage_dir="$task_root/probe"
+  docker_local=(env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS \
+    -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH -u DOCKER_API_VERSION \
+    /usr/bin/docker --host unix:///var/run/docker.sock)
+  container_id=$(cat "$stage_dir/container.id")
+  case "$container_id" in
+    ''|*[!0-9a-f]*) exit 1 ;;
+  esac
+  test "${#container_id}" -eq 64
+  run_id=$(/usr/bin/python3 -I -c \
+    'import json,sys; print(json.load(open(sys.argv[1]))["run_id"])' \
+    "$stage_dir/status.json")
+  case "$run_id" in
+    ''|*[!0-9a-f]*) exit 1 ;;
+  esac
+  test "${#run_id}" -eq 32
+  owner=$("${docker_local[@]}" inspect \
+    --format '{{index .Config.Labels "project"}}' "$container_id")
+  test "$owner" = nav2-phase-a
+  actual_run=$("${docker_local[@]}" inspect \
+    --format '{{index .Config.Labels "nav2.phase_a.run_id"}}' "$container_id")
+  test "$actual_run" = "$run_id"
+  "${docker_local[@]}" stop --time 20 "$container_id"
+  "${docker_local[@]}" inspect \
+    --format '{{.State.Running}} {{.State.Pid}}' "$container_id"
+)
+```
+
+Para falha no validador da imagem, trocar apenas `stage_dir="$task_root/probe"` por `stage_dir="$task_root/build"` nesse bloco completo. A rotina normal já realiza a parada, sem intervenção. O comando de emergência não transforma a tentativa interrompida em sucesso; confirme a saída `false 0` e preserve a tentativa.
+
+Para enviar as evidências do build/probe sem incluir imagem, fontes ou outros ambientes, executar no mesmo terminal:
+
+```bash
+/usr/bin/python3 -I - "$task_root" <<'PY'
+from pathlib import Path
+import sys
+import zipfile
+root = Path(sys.argv[1]).resolve(strict=True)
+archive = root / 'phase_a_evidence.zip'
+allowed = {'.json', '.jsonl', '.log', '.txt', '.tsv', '.yaml'}
+with zipfile.ZipFile(archive, 'x', zipfile.ZIP_DEFLATED) as output:
+    for name in ('checkout_commit.txt', 'lfs_pull.log', 'lfs_fsck.log'):
+        path = root / name
+        if path.is_file() and not path.is_symlink():
+            output.write(path, path.relative_to(root))
+    for name in ('build', 'probe'):
+        directory = root / name
+        if not directory.is_dir() or directory.is_symlink():
+            continue
+        for path in sorted(directory.rglob('*')):
+            if (path.is_file() and not path.is_symlink()
+                    and path.resolve().is_relative_to(directory.resolve())
+                    and (path.suffix in allowed or path.name == 'container.id')):
+                output.write(path, path.relative_to(root))
+print(archive)
+PY
+```
+
+O ZIP usa criação exclusiva: não sobrescreve um pacote anterior. Logs podem conter caminhos e detalhes de configuração desse novo experimento; revise antes de encaminhá-los ao revisor. Não incluir os 212 bags históricos nem diretórios CARLA/Autoware.
+
+Para repetir uma etapa com falha, criar outro diretório de saída, preservando o anterior. Corrigir o motivo da falha antes de repetir; nunca apagar logs para fazer o mesmo caminho ser aceito. Nova revisão de código exige novo build; não editar o manifesto para reutilizar uma imagem incompatível.
+
+## 5. Congelamento e bloqueios antes de missão
+
+O digest da base e os hashes de fonte são registrados; APT ainda é resolvido durante o build. Antes de iniciar comparação experimental, preservar a imagem final e planejar lock de dependências. Para exportar a imagem validada, com espaço livre suficiente e destino ainda inexistente:
+
+```bash
+(
+  set -euo pipefail
+  image_id=$(cat "$task_root/build/image_id.txt")
+  test ! -e "$task_root/runtime-image.tar"
+  env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS \
+    -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH -u DOCKER_API_VERSION \
+    /usr/bin/docker --host unix:///var/run/docker.sock image save \
+    --output "$task_root/runtime-image.tar" "$image_id"
+  sha256sum "$task_root/runtime-image.tar" > "$task_root/runtime-image.tar.sha256"
+)
+```
+
+A imagem exportada permite replay daquele runtime; não prova rebuild independente bit a bit. Não enviar esse TAR junto dos logs do diagnóstico.
+
+Mesmo se build e bringup funcionarem, permanecem abertos: interface yaw-rate do MPPI versus esterçamento do Ackermann upstream; TF/localização e frames/lever arms de GPS/IMU; BT/Spin e costmaps; associação da missão pública às referências; velocidade efetiva e equivalente geométrico do evaluator. O perfil de localização é proposto, não validado. A próxima decisão depende da inspeção das evidências locais. **PR #2 permanece draft, sem merge; missão, Gates 0/1, otimização e campanha experimental não foram autorizados por um smoke check.**
+
+Fontes de operação consultadas: [rede none](https://docs.docker.com/engine/network/drivers/none/), [limites de runtime](https://docs.docker.com/engine/containers/resource_constraints/), [builders](https://docs.docker.com/build/builders/), [storage containerd](https://docs.docker.com/engine/storage/containerd/), [Mesa software](https://docs.mesa3d.org/envvars.html), [xvfb-run Jammy](https://manpages.ubuntu.com/manpages/jammy/man1/xvfb-run.1.html).
