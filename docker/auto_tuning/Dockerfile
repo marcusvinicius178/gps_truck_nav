@@ -29,6 +29,12 @@ RUN source /opt/ros/iron/setup.bash && \
     dpkg-query -W > /ws/installed-packages.tsv
 COPY config/auto_tuning /opt/auto_tuning/config
 COPY tools/auto_tuning /opt/auto_tuning/tools
+RUN source /opt/ros/iron/setup.bash && \
+    cmake -S /opt/auto_tuning/tools/tf_probe -B /tmp/nav2_tf_probe_build \
+      -DCMAKE_INSTALL_PREFIX=/opt/auto_tuning && \
+    cmake --build /tmp/nav2_tf_probe_build --parallel 2 && \
+    cmake --install /tmp/nav2_tf_probe_build && \
+    rm -rf /tmp/nav2_tf_probe_build
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

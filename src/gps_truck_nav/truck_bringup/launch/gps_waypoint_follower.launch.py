@@ -4,17 +4,32 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
+from launch.actions import (
+    DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable,
+    SetLaunchConfiguration,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.descriptions import ParameterFile
+from nav2_common.launch import RewrittenYaml
 
 
 def generate_launch_description():
     bringup_dir = get_package_share_directory('truck_bringup')
     launch_dir = os.path.join(bringup_dir, 'launch')
     lc = LaunchConfiguration
+
+    # Composed planner/controller load requests only contain parameters selected
+    # for those parent nodes. Their Costmap2DROS children use new NodeOptions and
+    # need the complete file in the container process's global ROS arguments.
+    # This full GPS launch currently uses the root namespace throughout.
+    container_params = ParameterFile(
+        RewrittenYaml(
+            source_file=lc('params_file'), root_key='',
+            param_rewrites={'autostart': lc('autostart')}, convert_types=True),
+        allow_substs=True)
 
     def include(filename, arguments, condition=None):
         options = {'condition': condition} if condition is not None else {}
@@ -36,6 +51,9 @@ def generate_launch_description():
         DeclareLaunchArgument('autostart', default_value='true'),
         DeclareLaunchArgument('use_composition', default_value='True'),
         DeclareLaunchArgument('container_name', default_value='nav2_container'),
+        DeclareLaunchArgument(
+            'use_ackermann_bt', default_value='false',
+            description='Opt in to prospective no-Spin/no-BackUp trees for both navigation actions'),
         DeclareLaunchArgument('use_gpu', default_value='false', description='Opt in to NVIDIA PRIME offload'),
         DeclareLaunchArgument('use_xcb', default_value='true'),
         DeclareLaunchArgument(
@@ -43,6 +61,21 @@ def generate_launch_description():
             description='Retain legacy cloud TF; disable for the audited URDF-only sensor transform'),
     ]
     return LaunchDescription(arguments + [
+        # Evaluate the original params_file before replacing its launch value.
+        # Both the container and navigation include then receive this same
+        # prospective source; no installed or canonical YAML is modified.
+        SetLaunchConfiguration(
+            'params_file',
+            RewrittenYaml(
+                source_file=lc('params_file'),
+                param_rewrites={
+                    'bt_navigator.ros__parameters.default_nav_to_pose_bt_xml':
+                        '/opt/auto_tuning/config/behavior_trees/ackermann_navigate_to_pose.xml',
+                    'bt_navigator.ros__parameters.default_nav_through_poses_bt_xml':
+                        '/opt/auto_tuning/config/behavior_trees/ackermann_navigate_through_poses.xml',
+                },
+                convert_types=True),
+            condition=IfCondition(lc('use_ackermann_bt'))),
         SetEnvironmentVariable('__NV_PRIME_RENDER_OFFLOAD', '1', condition=IfCondition(lc('use_gpu'))),
         SetEnvironmentVariable('__GLX_VENDOR_LIBRARY_NAME', 'nvidia', condition=IfCondition(lc('use_gpu'))),
         SetEnvironmentVariable('QT_QPA_PLATFORM', 'xcb', condition=IfCondition(lc('use_xcb'))),
@@ -54,7 +87,7 @@ def generate_launch_description():
             condition=IfCondition(lc('use_composition')),
             package='rclcpp_components', executable='component_container_isolated',
             name=lc('container_name'), output='screen',
-            parameters=[{'use_sim_time': lc('use_sim_time')}]),
+            parameters=[container_params, {'use_sim_time': lc('use_sim_time')}]),
         include('dual_ekf_navsat.launch.py', {
             'use_sim_time': lc('use_sim_time'),
             'localization_params_file': lc('localization_params_file'),

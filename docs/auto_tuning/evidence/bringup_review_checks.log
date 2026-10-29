@@ -1,0 +1,41 @@
+Repository structural audit: exit=0
+CHECK XML syntax: 37
+CHECK YAML (unique keys): 15
+CHECK Python/launch syntax: 59
+CHECK unique canonical packages: 3
+CHECK installed Python entry points: 8
+CHECK world/waypoint site consistency (not alignment or runtime): 1
+CHECK required mesh references: 9
+PASS: structural audit
+Bash syntax validate_image.sh: exit=0
+
+Bash syntax collect_runtime_evidence.sh: exit=0
+
+Runbook Bash block 1: exit=0
+
+Runbook Bash block 2: exit=0
+
+Runbook Bash block 3: exit=0
+
+Runbook Bash block 4: exit=0
+
+Runbook Bash block 5: exit=0
+
+Runbook Bash block 6: exit=0
+
+Runbook Bash block 7: exit=0
+
+Runbook Bash block 8: exit=0
+
+Runbook Bash block 9: exit=0
+
+PASS: 9 Bash runbook blocks; 2 embedded Python blocks
+PASS: embedded image validator Python syntax
+PASS: four protected canonical file hashes unchanged
+PASS: navigation_launch.py unchanged from b8922ae; fix resides in container owner
+PASS: analysis checkout unchanged and clean
+Whitespace check: exit=0
+
+LIMIT: No Docker build, ROS adapter compilation, ROS/Gazebo execution or mission in Work.
+FINAL REVIEW: Clock wall-time liveness and dynamic TF progress regressions added.
+PASS: 142 tests after final changes; structural audit and diff --check repeated successfully.

@@ -2,11 +2,11 @@
 
 ## Resultado e limite
 
-**HOST PREFLIGHT APROVADO pelo revisor para ipt-sim-01. Gate 0 e Gate 1: NOT YET VERIFIED.** Auditoria estática e preparação entregues. Não houve build de imagem, build C++, lançamento ROS/Gazebo, missão, gravação MCAP nova ou otimização neste Work. A decisão de 14/10 permanece CONDITIONAL GO; estes testes não a convertem em aprovação de runtime.
+**HOST PREFLIGHT APROVADO pelo revisor para ipt-sim-01. Gate 0 e Gate 1: NOT YET VERIFIED.** O ZIP local do commit `b8922ae` comprova imagem validada e bringup parcialmente funcional, mas reprova costmaps e ativação integral do Nav2. Neste Work não houve build Docker nem lançamento ROS/Gazebo; o núcleo do novo observador TF foi compilado/testado sem ROS. Não houve missão, gravação MCAP nova ou otimização. A decisão de 14/10 permanece CONDITIONAL GO.
 
 O proprietário já executou `host_preflight.py` e forneceu o JSON. A leitura integral confirmou Ubuntu 22.04.5, 32 CPUs lógicas, 60,3 GiB RAM, Docker 29.8.2/Compose 5.5.1, daemon local e Git/LFS existentes. Humble deve permanecer intacto; não instalar Gazebo no host. Detalhes e limites estão em `host_preflight_ipt_sim_01.md`.
 
-O próximo passo é a seção 2 de `local_setup_runbook.md`: checkout novo e `local_phase_a.py build`. Somente após `IMAGE_VALIDATED`, executar o estágio `probe` da seção 3, sem missão. Os arquivos completos estão no branch da PR #2; não há edição manual por trechos. Retornar o ZIP de evidências da seção 4. Falha de build interrompe a sequência e preserva os logs.
+O próximo passo é a **seção 2.2 de `local_setup_runbook.md`**: atualizar o checkout dedicado, reconstruir a imagem e, somente após `IMAGE_VALIDATED`, repetir apenas o probe em diretório exclusivo. A investigação causal e os limites estão em `independent_bringup_review.md` e `localization_actuation_bringup_review.md`. Os arquivos completos estão no branch da PR #2; não há edição manual por trechos. Retornar o novo ZIP ao revisor independente. Falha de build interrompe a sequência e preserva os logs.
 
 ## Entregáveis
 
@@ -55,16 +55,16 @@ Verificação da continuação: **71 testes PASS**, incluindo 15 testes do novo 
 ## Bloqueios que impedem missão agora
 
 1. **Interface de comando:** Gazebo Ackermann 3.7.0 interpreta angular.z como esterçamento; MPPI usa yaw rate. Confirmar binário real e conversão antes de dirigir. Não foi implementado conversor com wheelbase presumida nem alegado defeito do runtime histórico privado.
-2. **TF/localização:** perfil novo resolve estaticamente duplicação map→odom, input GPS e TF cloud; convergência/autoridades/sensores ainda não foram observados. GPS/IMU têm risco de frame/lever arm, e GPS tem remaps duplicadas.
-3. **BT/costmaps:** verificar Spin no BT padrão e a observação `/external_area_pointcloud` ausente. Não iniciar Virtual Lanes para mascarar dependência do core.
+2. **TF/localização:** amostras existem, mas geometria, covariâncias e autoridades por aresta não estão aprovadas. GPS/IMU declaram base_footprint apesar dos offsets físicos; nenhuma geometria, datum ou incerteza foi substituída nesta revisão.
+3. **BT/costmaps:** corrigidos no código o transporte do YAML completo para o container e a seleção opt-in de duas BTs sem Spin/BackUp. A próxima imagem/probe deve comprovar aplicação dos parâmetros e ACTIVE. A observação `/external_area_pointcloud` continua pendente; não iniciar Virtual Lanes para mascarar dependência do core.
 4. **Missão/referência/velocidade:** rota ativa pública marcada 5_6 não pode ser assumida S1/S2/S3. Os limites atuais não definem automaticamente 20 km/h. O equivalente de steering do evaluator deve ser conciliado com o modelo.
-5. **Ambiente/medição:** tag/APT, build/load, renderer headless e MCAP Iron ainda dependem de execução. `dpkg-query` e imagem final devem ser congelados.
-6. **Automação:** faltam supervisor de missão, readiness automático, action JSON, recorder e reset entre A/B. O coletor diagnóstico não os substitui.
+5. **Ambiente/medição:** imagem anterior identificada e validada no host; a imagem corrigida, incluindo compilação do adaptador ROS do observador, ainda depende de build local. `dpkg-query`, digest e logs continuam congelados por tentativa.
+6. **Automação:** a coleta agora produz critérios objetivos e `mission_ready=false`; faltam supervisor de missão, action JSON, recorder e reset entre A/B. O diagnóstico não os substitui.
 
 ## Revisão e próximo passo
 
 A revisão independente deve avaliar o escopo de preparação, a hipótese de reparo de localização e os bloqueios acima. A PR é **draft**, para revisão, sem merge. Não representa entrega do micro-PoC.
 
-Sequência seguinte, partindo do host aprovado: build/validação da imagem → bringup diagnóstico → resolver atuação/sensores/BT com versão efetiva → definir missão/referência → Gate 0 com dados novos → implementar supervisor → executar A/B e reset → revisão independente obrigatória antes de qualquer busca. Falha de reset interrompe a sequência. Não há Optuna instalado/configurado nem campanha de simulação nesta entrega.
+Sequência seguinte: build/validação da imagem corrigida → probe diagnóstico → revisão independente das novas evidências → resolver atuação/sensores e obter autorização explícita antes de qualquer missão. Gate 0, supervisor, A/B/reset e busca permanecem etapas futuras. Não há Optuna instalado/configurado nem campanha de simulação nesta entrega.
 
 Os 212 runs históricos, suas métricas e a tese permanecem fora deste trabalho. Virtual Lanes segue independente e ainda não foi validada como restrição de navegação.

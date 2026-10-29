@@ -1,6 +1,6 @@
 # Preparação local — ipt-sim-01, continuação da Fase A
 
-**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT YET VERIFIED.** O próximo passo é construir uma imagem isolada Iron/Classic e verificar seu bringup sem enviar missão. Esta revisão substitui as instruções anteriores de instalação do host.
+**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT YET VERIFIED.** O ZIP do commit `b8922ae` comprova `IMAGE_VALIDATED` e coleta do bringup, mas os dumps reprovam a configuração efetiva das costmaps e a ativação integral do Nav2. Para a revisão independente atual, seguir a **seção 2.2**. Ela reconstrói a imagem corrigida e repete somente o probe, sem missão. As seções anteriores ficam como histórico operacional de preparação.
 
 ## 1. Ambiente confirmado e isolamento
 
@@ -97,6 +97,91 @@ Retornar `retry_root/build/status.json`, `image_validation_run.log`, `build.log`
 
 Fontes da correção: [Server::ParseArgs, Classic 11.10.2](https://github.com/gazebosim/gazebo-classic/blob/gazebo11_11.10.2/gazebo/Server.cc), [main de gzserver](https://github.com/gazebosim/gazebo-classic/blob/gazebo11_11.10.2/gazebo/server_main.cc).
 
+### 2.2. Revisão independente: costmaps, BTs e prontidão objetiva
+
+Ler `independent_bringup_review.md` e `localization_actuation_bringup_review.md`. Foram corrigidos o transporte do YAML completo até o processo container e a seleção prospectiva de duas árvores BT sem Spin/BackUp. A localização e a interface de atuação continuam bloqueadas para missão. A nova coleta mede essas pendências; não muda datum, geometria, covariâncias nem habilita Virtual Lanes.
+
+**Host:** ipt-sim-01. **Diretório inicial:** qualquer diretório do terminal desse host. O caminho abaixo foi confirmado no ZIP recebido. Se o proprietário tiver movido esse diretório, usar seu novo caminho exato, sem selecionar um workspace diferente. O checkout deve estar limpo; não descartar mudanças locais para passar nessa checagem.
+
+```bash
+task_root="$HOME/nav2-phase-a-ipt-sim-01.pMbd0n06"
+review_root=$(mktemp -d "$task_root/bringup-review.XXXXXXXX")
+printf 'Evidências desta revisão: %s\n' "$review_root"
+(
+  set -euo pipefail
+  test -n "$review_root"
+  test -d "$review_root"
+  cd "$task_root/gps_truck_nav"
+  test -z "$(git status --porcelain --untracked-files=all)"
+  git fetch origin engineering/2026-10-preflight-gates \
+    2>&1 | tee "$review_root/git_fetch.log"
+  GIT_LFS_SKIP_SMUDGE=1 git checkout --detach FETCH_HEAD
+  git rev-parse HEAD > "$review_root/checkout_commit.txt"
+  /usr/bin/python3 -I tools/auto_tuning/local_phase_a.py build \
+    --repo "$task_root/gps_truck_nav" \
+    --output-dir "$review_root/build"
+)
+```
+
+Esse build mantém o daemon/builder locais e pode reutilizar APT/base em cache. O launch mudou dentro do pacote: o colcon pode reconstruir/reinstalar essa camada. Também é compilado o novo observador TF em C++, dentro da imagem, com dois jobs. Não usar `--no-cache`, prune, reinício do Docker ou instalação no host. O smoke verifica o transporte dos parâmetros usando o launch Iron instalado, dependências do observador e os checks anteriores; isso ainda não demonstra parâmetros aplicados em nós vivos.
+
+**Somente após `IMAGE_VALIDATED` nesse novo build**, no mesmo terminal e sem atualizar o checkout novamente, executar:
+
+```bash
+cd "$task_root/gps_truck_nav"
+/usr/bin/python3 -I tools/auto_tuning/local_phase_a.py probe \
+  --repo "$task_root/gps_truck_nav" \
+  --build-dir "$review_root/build" \
+  --output-dir "$review_root/probe"
+```
+
+O helper seleciona `use_ackermann_bt:=true`, o perfil prospectivo de localização anterior e `publish_legacy_cloud_tf:=false`. Não envia goals/Twist, não grava bag, não inicia otimizador e não aciona Virtual Lanes. O observador adiciona uma janela limitada para parâmetros/lifecycle, amostras de relógio/sensores, metadados das costmaps e TF por aresta/GID. `/fromLL` recebe apenas consultas de conversão; nenhum serviço de reset, datum ou atuação é chamado.
+
+Interpretar os resultados separadamente:
+
+| Campo | Significado |
+|---|---|
+| `status=OBSERVATIONS_COLLECTED` | Coleta retornou e container próprio foi encerrado; não é saúde integral. |
+| `readiness_collection_status` | COMPLETE/PARTIAL/FAILED da captura estruturada. |
+| `diagnostic_status=BLOCKED` | Há critérios objetivos reprovados. |
+| `diagnostic_status=INCOMPLETE` | Evidência necessária ausente/inconclusiva. |
+| `diagnostic_status=REVIEW_REQUIRED` | Os checks observados não liberam missão; revisão geométrica/atuação continua necessária. |
+| `mission_ready=false` | Mantido em todos os resultados. Gates 0/1 continuam não verificados. |
+
+Revisar `probe/runtime_probe/readiness.json` junto de `readiness_observations.json`, `tf_authority.json`, dumps de parâmetros, estados lifecycle e `probe/bringup.log`. Para costmaps, conferir dimensões, rolling window, footprint, frames e camadas/fontes contra o YAML, incluindo ausência de StaticLayer. Para BT, conferir os dois navigators/path XML e todos os sete lifecycle nodes ACTIVE. Falhas de fontes de obstáculos, covariâncias, frames ou autoridade não devem ser ocultadas por um container ainda vivo.
+
+Os metadados GPS/IMU antigos e a interface Ackermann ainda podem produzir BLOCKED mesmo após a correção de costmaps/BT. Isso é evidência útil, não autorização para escolher novos valores de ruído ou geometria. Timeout ou falha do observador devem aparecer explicitamente; o helper recusa relatório ausente/inválido e preserva cleanup. Interrupção durante o próprio cleanup requer a recuperação por ID/labels da seção 4, usando `stage_dir="$review_root/probe"`.
+
+Para empacotar esta tentativa sem sobrescrever pacotes anteriores:
+
+```bash
+/usr/bin/python3 -I - "$review_root" <<'PY'
+from pathlib import Path
+import sys
+import zipfile
+root = Path(sys.argv[1]).resolve(strict=True)
+archive = root / 'nav2_phase_a_review_evidence.zip'
+allowed = {'.json', '.jsonl', '.log', '.txt', '.tsv', '.yaml'}
+with zipfile.ZipFile(archive, 'x', zipfile.ZIP_DEFLATED) as output:
+    for name in ('checkout_commit.txt', 'git_fetch.log'):
+        path = root / name
+        if path.is_file() and not path.is_symlink():
+            output.write(path, path.relative_to(root))
+    for name in ('build', 'probe'):
+        directory = root / name
+        if not directory.is_dir() or directory.is_symlink():
+            continue
+        for path in sorted(directory.rglob('*')):
+            if (path.is_file() and not path.is_symlink()
+                    and path.resolve().is_relative_to(directory.resolve())
+                    and (path.suffix in allowed or path.name == 'container.id')):
+                output.write(path, path.relative_to(root))
+print(archive)
+PY
+```
+
+Encaminhar esse ZIP ao revisor independente. Não iniciar missão após o probe, mesmo se todos os lifecycle nodes ficarem ACTIVE. As tentativas anteriores em `build` e `smoke-retry.N5Na75vV` permanecem intactas; a revisão atual usa somente o novo diretório `bringup-review.*`. Não editar manifests antigos, não remover containers/imagens e não fazer merge da PR #2.
+
 ## 3. Depois de IMAGE_VALIDATED: bringup headless diagnóstico
 
 **Diretório de trabalho:** o mesmo checkout novo. **Pré-requisitos:** `task_root` mantido no terminal, `build/status.json` aprovado pelo smoke check, imagem existente no daemon local e checkout intacto. Em outro terminal, recupere o caminho impresso na seção 2 e atribua-o a `task_root` antes de continuar; não escolha arbitrariamente um build antigo.
@@ -113,7 +198,7 @@ Esse estágio confere a imagem e a fonte, cria um container novo com limites e r
 
 A coleta tem timeouts e pode durar vários minutos. `tf2_echo` costuma atingir seu timeout após coletar amostras; é necessário ler o log, não interpretar esse exit code isoladamente como erro ou aprovação. O helper registra stdout/stderr do bringup, logs do Xvfb, inspect anterior/posterior e confirma parada `Running=false`, `Pid=0` do ID que criou. Containers próprios ficam parados para inspeção; não são removidos automaticamente.
 
-`OBSERVATIONS_COLLECTED` significa somente coleta e encerramento concluídos. Sensores, TF, lifecycle, parâmetros e estado dos processos precisam ser revisados; várias consultas podem ter falhado. Um processo de launch vivo não basta para provar que gzserver e componentes Nav2 continuaram vivos. Nenhum status desta etapa aprova Gate 0/1.
+`OBSERVATIONS_COLLECTED` significa somente coleta e encerramento concluídos. O resumo atual também informa `diagnostic_status`, `readiness_collection_status` e `mission_ready=false`; interpretar conforme seção 2.2. Sensores, TF, lifecycle, parâmetros e estado dos processos precisam ser revisados; várias consultas podem ter falhado. Um processo de launch vivo não basta para provar que gzserver e componentes Nav2 continuaram vivos. Nenhum status desta etapa aprova Gate 0/1.
 
 Se houver falta de RAM, erro de software rendering, OOM ou falha de imagem, preservar logs. Não alterar drivers NVIDIA, habilitar `--privileged`, usar rede do host ou reiniciar Docker. Uma eventual alternativa de renderização deve ser uma alteração explícita e revisada do ambiente.
 

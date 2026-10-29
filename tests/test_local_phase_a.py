@@ -32,6 +32,9 @@ class FakeRunner:
         self.run_id = ""
         self.fail = fail
         self.stop_count = 0
+        self.readiness = {'schema_version': 1, 'collection_status': 'COMPLETE',
+                          'diagnostic_status': 'BLOCKED', 'mission_ready': False,
+                          'gate0': 'NOT_YET_VERIFIED', 'gate1': 'NOT_YET_VERIFIED'}
 
     def inspect(self):
         return [{"Id": CID, "Config": {"Labels": {"project": "nav2-phase-a", phase.LABEL: self.run_id}},
@@ -54,6 +57,10 @@ class FakeRunner:
             self.run_id = next(item.split("=", 1)[1] for item in argv if item.startswith(phase.LABEL + "="))
         if name == "headless_start":
             self.running = True
+        if name == 'runtime_probe' and self.readiness is not None:
+            path = self.output / 'runtime_probe'
+            path.mkdir()
+            (path / 'readiness.json').write_text(json.dumps(self.readiness))
         if name == "image_validation_run":
             return json.dumps({"status": "IMAGE_SMOKE_VALIDATED"})
         if name == "package_inventory":
@@ -104,6 +111,7 @@ class LocalPhaseTests(unittest.TestCase):
         self.assertIn(f"type=bind,src={self.out},dst=/evidence", create)
         self.assertIn("xvfb-run", create)
         self.assertIn("publish_legacy_cloud_tf:=false", create)
+        self.assertIn("use_ackermann_bt:=true", create)
         joined = " ".join(" ".join(argv) for _, argv, _ in calls)
         for forbidden in ("send_goal", "logged_waypoint_follower.py", "system prune", " rm ", " rmi ", "use_rviz:=true", "--network host"):
             self.assertNotIn(forbidden, joined)
@@ -112,6 +120,31 @@ class LocalPhaseTests(unittest.TestCase):
         self.assertEqual(self.runner.stop_count, 1)
         self.assertEqual(self.state["status"], "OBSERVATIONS_COLLECTED")
         self.assertEqual(self.state["gate1"], "NOT_YET_VERIFIED")
+        self.assertEqual(self.state['diagnostic_status'], 'BLOCKED')
+        self.assertFalse(self.state['mission_ready'])
+        self.assertEqual(len(self.state['readiness_sha256']), 64)
+
+    def test_missing_readiness_report_cannot_be_claimed_as_complete_probe(self):
+        self.runner.readiness = None
+        with self.assertRaises(FileNotFoundError):
+            self.probe()
+        self.assertEqual(self.runner.stop_count, 1)
+        self.assertNotEqual(self.state.get('status'), 'OBSERVATIONS_COLLECTED')
+
+    def test_readiness_cannot_approve_a_mission_or_gate(self):
+        self.runner.readiness['mission_ready'] = True
+        with self.assertRaisesRegex(phase.PhaseError, 'readiness contract'):
+            self.probe()
+        self.assertEqual(self.runner.stop_count, 1)
+
+    def test_failed_readiness_capture_preserves_failure_and_stops_owned_container(self):
+        self.runner.readiness.update(collection_status='FAILED', diagnostic_status='INCOMPLETE')
+        with self.assertRaisesRegex(phase.PhaseError, 'capture failed'):
+            self.probe()
+        self.assertEqual(self.runner.stop_count, 1)
+        self.assertEqual(self.state['readiness_collection_status'], 'FAILED')
+        self.assertEqual(self.state['diagnostic_status'], 'INCOMPLETE')
+        self.assertNotEqual(self.state.get('status'), 'OBSERVATIONS_COLLECTED')
 
     def test_probe_timeout_still_stops_only_owned_container(self):
         self.runner.fail = "runtime_probe"

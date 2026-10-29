@@ -38,13 +38,18 @@ probe odometry_local ros2 topic echo /odometry/local --once
 probe odometry_raw ros2 topic echo /odom --once
 probe imu_raw ros2 topic echo /imu/data --once
 probe imu_remapped ros2 topic echo /imu --once
-probe tf_static ros2 topic echo /tf_static --once --qos-durability transient_local
+probe tf_static ros2 topic echo /tf_static --once --qos-durability transient_local --qos-reliability reliable
 probe tf_map_base ros2 run tf2_ros tf2_echo map base_footprint
 probe tf_odom_base ros2 run tf2_ros tf2_echo odom base_footprint
 probe tf_base_cloud ros2 run tf2_ros tf2_echo base_link cloud
 probe tf_publishers ros2 topic info /tf --verbose
 probe tf_static_publishers ros2 topic info /tf_static --verbose
 probe from_ll ros2 service type /fromLL
+readiness_status=0
+timeout --signal=INT --kill-after=5s 75s \
+  python3 /opt/auto_tuning/tools/probe_readiness.py "$output_dir" --duration 30 \
+  >"$output_dir/readiness_collector.log" 2>&1 || readiness_status=$?
+printf 'readiness_collector\t%s\n' "$readiness_status" >>"$output_dir/exit_codes.tsv"
 python3 - "$output_dir" <<'PY'
 import datetime, json, os, pathlib, sys
 out = pathlib.Path(sys.argv[1])
@@ -52,6 +57,8 @@ result = {
     'collected_at_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
     'evidence_status': 'OBSERVATIONS_ONLY_REQUIRES_REVIEW',
     'gate0': 'NOT_YET_VERIFIED', 'gate1': 'NOT_YET_VERIFIED',
+    'readiness_report': 'readiness.json',
+    'mission_ready': False,
     'ros_domain_id': os.environ.get('ROS_DOMAIN_ID'),
     'ros_localhost_only': os.environ.get('ROS_LOCALHOST_ONLY'),
     'notes': [
@@ -65,3 +72,4 @@ result = {
 (out / 'collection.json').write_text(json.dumps(result, indent=2) + '\n')
 PY
 printf 'Evidence collected in %s; readiness and gates are NOT verified.\n' "$output_dir"
+exit "$readiness_status"

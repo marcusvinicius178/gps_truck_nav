@@ -211,6 +211,19 @@ def image_inspection(runner, docker, image_id, name):
     return entries[0]
 
 
+def readiness_result(output):
+    path = output / 'runtime_probe/readiness.json'
+    result = one_json(path.read_text(), 'runtime readiness report')
+    if (not isinstance(result, dict) or result.get('schema_version') != 1
+            or result.get('diagnostic_status') not in ('BLOCKED', 'INCOMPLETE', 'REVIEW_REQUIRED')
+            or result.get('collection_status') not in ('COMPLETE', 'PARTIAL', 'FAILED')
+            or result.get('mission_ready') is not False
+            or result.get('gate0') != 'NOT_YET_VERIFIED'
+            or result.get('gate1') != 'NOT_YET_VERIFIED'):
+        raise PhaseError('Invalid readiness contract; no health or mission approval may be inferred')
+    return result, file_hash(path)
+
+
 def build(repo, output, runner, docker, status):
     source = source_snapshot(repo, runner)
     status["source"] = source
@@ -300,7 +313,7 @@ def probe(repo, build_dir, output, runner, docker, status, *, warmup_seconds=10,
     command = [image_id, "xvfb-run", "-a", "-e", "/evidence/xvfb.log", "-s", "-screen 0 1280x720x24 -nolisten tcp",
                "ros2", "launch", "truck_bringup", "gps_waypoint_follower.launch.py",
                "use_gzclient:=false", "use_rviz:=false", "use_mapviz:=false", "use_gpu:=false",
-               "use_xcb:=false", "publish_legacy_cloud_tf:=false",
+               "use_xcb:=false", "publish_legacy_cloud_tf:=false", "use_ackermann_bt:=true",
                "localization_params_file:=/opt/auto_tuning/config/dual_ekf_navsat_gate0.yaml"]
     try:
         runner.run("headless_create", docker + container_options(output, run_id, "headless") + command, capture=False)
@@ -318,8 +331,15 @@ def probe(repo, build_dir, output, runner, docker, status, *, warmup_seconds=10,
         state = inspect_container(runner, docker, cid, "headless_after_probe")
         if state.get("State", {}).get("Running") is not True:
             raise PhaseError("Bringup container exited during evidence collection")
+        readiness, digest = readiness_result(output)
+        status.update(diagnostic_status=readiness['diagnostic_status'],
+                      readiness_collection_status=readiness['collection_status'],
+                      mission_ready=False, readiness_report='runtime_probe/readiness.json',
+                      readiness_sha256=digest)
+        if readiness['collection_status'] == 'FAILED':
+            raise PhaseError('Readiness capture failed; inspect preserved readiness report')
         status["status"] = "OBSERVATIONS_COLLECTED"
-        status["limitation"] = "Collector completion and live container are observations only; inspect all child processes, lifecycle, TF and sensors. No mission readiness or gates are approved."
+        status["limitation"] = "Collection status is separate from diagnostic_status. Read readiness.json checks, effective parameters, lifecycle, TF authorities and sensor evidence. Mission remains blocked by localization/actuation review; no gates are approved."
     finally:
         status["cleanup"] = cleanup_container(runner, docker, cid_file, run_id, "headless")
     if status["cleanup"].get("log_error"):
@@ -346,7 +366,8 @@ def main(argv=None):
     output.mkdir(parents=False, exist_ok=False)
     status = {"schema_version": 1, "stage": args.stage, "status": "RUNNING", "run_id": uuid.uuid4().hex,
               "started_at_utc": now(), "docker_endpoint": ENDPOINT,
-              "gate0": "NOT_YET_VERIFIED", "gate1": "NOT_YET_VERIFIED", "mission_sent": False}
+              "gate0": "NOT_YET_VERIFIED", "gate1": "NOT_YET_VERIFIED", "mission_sent": False,
+              "mission_ready": False}
     save_json(output / "status.json", status)
     code = 0
     try:
@@ -365,7 +386,10 @@ def main(argv=None):
     finally:
         status["finished_at_utc"] = now()
         save_json(output / "status.json", status)
-    print(json.dumps({"status": status["status"], "evidence": str(output), "gate0": status["gate0"], "gate1": status["gate1"]}))
+    print(json.dumps({"status": status["status"], "evidence": str(output),
+                      "diagnostic_status": status.get('diagnostic_status', 'NOT_ASSESSED'),
+                      "readiness_collection_status": status.get('readiness_collection_status', 'NOT_ASSESSED'),
+                      "mission_ready": False, "gate0": status["gate0"], "gate1": status["gate1"]}))
     return code
 
 

@@ -100,7 +100,8 @@ with tempfile.TemporaryDirectory(prefix='nav2-image-smoke-', dir='/tmp') as temp
     # These checks do not call rclpy.init() or create DDS participants.
     for module in ('rclpy', 'rclpy.serialization', 'rosbag2_py', 'rosidl_runtime_py.utilities',
                    'numpy', 'yaml', 'nav_msgs.msg', 'geometry_msgs.msg', 'sensor_msgs.msg',
-                   'tf2_msgs.msg', 'rosgraph_msgs.msg', 'nav2_msgs.action', 'robot_localization.srv'):
+                   'tf2_msgs.msg', 'rosgraph_msgs.msg', 'nav2_msgs.action', 'robot_localization.srv',
+                   'rcl_interfaces.srv', 'lifecycle_msgs.srv', 'tf2_ros'):
         try:
             imported = importlib.import_module(module)
             add('import_' + module, True, source=getattr(imported, '__file__', None))
@@ -157,9 +158,19 @@ with tempfile.TemporaryDirectory(prefix='nav2-image-smoke-', dir='/tmp') as temp
     launch = command('launch_show_args', ['ros2', 'launch', 'truck_bringup',
                                         'gps_waypoint_follower.launch.py', '--show-args'], timeout=30)
     arguments = launch['stdout'] + launch['stderr']
-    for name in ('use_gzclient', 'use_rviz', 'use_mapviz', 'use_xcb',
+    for name in ('use_gzclient', 'use_rviz', 'use_mapviz', 'use_xcb', 'use_ackermann_bt',
                  'publish_legacy_cloud_tf', 'localization_params_file'):
         add('launch_argument_' + name, launch['passed'] and name in arguments)
+    command('launch_parameter_transport',
+            ['python3', '/opt/auto_tuning/tools/verify_parameter_transport.py'], timeout=30)
+    observer = Path('/opt/auto_tuning/bin/tf_authority_probe')
+    add('tf_authority_probe_executable', observer.is_file() and os.access(observer, os.X_OK),
+        path=str(observer))
+    if observer.is_file():
+        linked = command('tf_authority_probe_linked_libraries', ['ldd', str(observer)])
+        add('tf_authority_probe_no_missing_libraries', linked['passed'] and
+            'not found' not in linked['stdout'] + linked['stderr'])
+        command('tf_authority_probe_help', [str(observer), '--help'])
     manifest = Path('/ws/installed-packages.tsv')
     add('installed_package_manifest', manifest.is_file() and manifest.stat().st_size > 0,
         path=str(manifest))
