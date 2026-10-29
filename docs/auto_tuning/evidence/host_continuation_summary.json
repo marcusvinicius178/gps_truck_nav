@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-29T19:26:44.084057+00:00",
+  "parent_preparation_commit": "a19bf46fabfebb30e999b950dd70ec1fae529169",
+  "integration_base": "19f38e535bebc8a03a6aeef75c29160e0524668b",
+  "analysis_commit": "36ba76823cc7a124540412cf3ce09c73e6cd1d05",
+  "host_evidence": {
+    "host": "ipt-sim-01",
+    "source": "host_preflight.json supplied by owner; fully read",
+    "collected_at_utc": "2026-10-29T19:00:40.724294+00:00",
+    "reviewer_decision": "HOST_PREFLIGHT_APPROVED",
+    "executed_by_agent_on_host": false,
+    "os": "Ubuntu 22.04.5 LTS",
+    "architecture": "x86_64",
+    "logical_cpus": 32,
+    "memory_total_gib_rounded": 60.3,
+    "memory_available_gib_rounded": 40.8,
+    "downloads_filesystem_free_gib_rounded": 366.6,
+    "docker_engine": "29.8.2",
+    "docker_compose": "v5.5.1",
+    "docker_local_daemon_responded": true,
+    "ros_host": "humble",
+    "gazebo_host_found_in_path": false,
+    "gpu_devices_present": true,
+    "gpu_rendering_validated": false
+  },
+  "offline_verification": {
+    "unit_tests_passed": 71,
+    "new_helper_tests": 15,
+    "helper_docker_calls": "simulated fixtures only",
+    "structural_audit": "PASS",
+    "python_files": 51,
+    "yaml_files": 15,
+    "xml_files": 35,
+    "runbook_bash_blocks_checked": 5,
+    "validator_inline_python_compile": "PASS",
+    "protected_canonical_hashes_unchanged": true,
+    "analysis_worktree_clean": true,
+    "independent_isolation_review": "No remaining code blockers; runtime still untested"
+  },
+  "not_executed_by_agent": [
+    "host installation or modification",
+    "Docker pull/build",
+    "C++ build",
+    "image smoke validation",
+    "ROS/Gazebo bringup",
+    "mission or Twist injection",
+    "new bag recording or evaluation",
+    "reset experiment",
+    "optimizer or experimental campaign"
+  ],
+  "gate0": "NOT_YET_VERIFIED",
+  "gate1": "NOT_YET_VERIFIED",
+  "mission_blockers_preserved": [
+    "yaw-rate versus Ackermann steering",
+    "TF/localization and GPS/IMU frames/lever arms",
+    "BT/Spin and costmaps",
+    "route/reference association",
+    "effective speed and evaluator geometry"
+  ],
+  "file_sha256": {
+    "tools/auto_tuning/local_phase_a.py": "17c315c6d5ce85f88b0615da83114a46ba92835254e01814f9d5c0399df18dec",
+    "tools/auto_tuning/validate_image.sh": "ec6acbf6c3a4e1dd0c15885234e81fb85336dde5db824251ac88272c5e2de112",
+    "tests/test_local_phase_a.py": "a164b4cad1ed484543e6d345ae832fb85c7d33dcf020b0804fa1e662bebf2f36",
+    "docker/auto_tuning/Dockerfile": "69fe265e7dab2c63e5de7bae7c8050317b9bd107049446096ae929d137ad8538",
+    "docs/auto_tuning/local_setup_runbook.md": "eeb8b362edcc1415634d3d4e719a9b2543eb497cf5457346f4be47eeed424dee",
+    "docs/auto_tuning/evidence/host_continuation_tests.log": "607a689bc84a89f11cadedbc2c9470c852f9f8636c36c11800aca2b4ead278e8",
+    "docs/auto_tuning/evidence/host_continuation_checks.log": "d14f5fb12d950127e85eb4c5b0f3471040e10552edc3fa166a3cdf3027c86acc"
+  }
+}

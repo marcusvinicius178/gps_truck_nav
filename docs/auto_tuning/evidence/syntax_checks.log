@@ -1,0 +1,6 @@
+8 runbook Bash blocks: PASS
+Runtime collector Bash syntax: PASS
+Docker inline Python syntax: PASS
+LFS build guard against hydrated local assets: PASS
+Docker image build: NOT EXECUTED
+ROS/Gazebo: NOT EXECUTED

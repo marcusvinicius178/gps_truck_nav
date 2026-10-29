@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "date_utc": "2026-10-29",
+  "scope": "INDEPENDENT_BRINGUP_REVIEW_AND_OFFLINE_CORRECTIONS",
+  "received_host_evidence": {
+    "archive_name": "nav2_phase_a_probe_evidence.zip",
+    "archive_sha256": "6a48d2c9e96d8ca9202763dcb5f16250591afbbc598937c40b0fe936f6972034",
+    "source_commit": "b8922aee9e792b357dc15263a256e11a08cdbfb1",
+    "image_id": "sha256:8fef65a928d1e8cda20724dfb24404d3396755c3d545170b52b7e3d0acc3ac16",
+    "base_digest": "osrf/ros@sha256:0a843c9298b89b89f2c1d112f40e70a761d84843360df860ad903492353d3763",
+    "build_status": "IMAGE_VALIDATED",
+    "probe_collection_status": "OBSERVATIONS_COLLECTED",
+    "probe_started_at_utc": "2026-10-29T21:51:56.629609+00:00",
+    "probe_finished_at_utc": "2026-10-29T21:53:40.909622+00:00",
+    "cleanup": {
+      "build": {
+        "status": "OWNED_CONTAINER_STOPPED",
+        "container_id": "8c58b0032b997b4efdca56d44581b7e060aff965bcd70e3e1e3cab841cd5539b",
+        "running": false,
+        "pid": 0,
+        "gate_reset_proven": false,
+        "log_error": null,
+        "stop_command_error": null
+      },
+      "probe": {
+        "status": "OWNED_CONTAINER_STOPPED",
+        "container_id": "1411f7ab6b5aa9b724a05271958b6d48680a2b72f4b4b4f8cc9782e8a7d24f0a",
+        "running": false,
+        "pid": 0,
+        "gate_reset_proven": false,
+        "log_error": null,
+        "stop_command_error": null
+      }
+    },
+    "log_counts": {
+      "costmap_out_of_bounds": 1004,
+      "local_static_map_missing": 101,
+      "missing_optional_steering_wheel_joint": 1,
+      "unrecognized_spin": 1
+    },
+    "costmaps": {
+      "/global_costmap/global_costmap": {
+        "width": 5,
+        "height": 5,
+        "rolling_window": false,
+        "footprint": "[]",
+        "robot_base_frame": "base_link",
+        "plugins": [
+          "static_layer",
+          "obstacle_layer",
+          "inflation_layer"
+        ]
+      },
+      "/local_costmap/local_costmap": {
+        "width": 5,
+        "height": 5,
+        "rolling_window": false,
+        "footprint": "[]",
+        "robot_base_frame": "base_link",
+        "plugins": [
+          "static_layer",
+          "obstacle_layer",
+          "inflation_layer"
+        ]
+      }
+    },
+    "interpretation": "Image validation and collection succeeded; effective costmaps and full Nav2 lifecycle readiness failed."
+  },
+  "implemented": [
+    "Complete rewritten parameter file supplied as container process global ROS arguments",
+    "Opt-in versioned trees for both navigators, without Spin or direct motion recoveries",
+    "Installed Iron parameter transport check without starting ROS nodes",
+    "Read-only structured runtime checks with explicit failure/unknown/review states",
+    "Bounded C++ TF observer associates edges with message publisher GIDs and graph endpoints",
+    "Full local rebuild/probe/archive commands preserve prior attempts"
+  ],
+  "local_validation": {
+    "unit_tests_passed": 142,
+    "unit_tests_failed": 0,
+    "test_scope": "Offline contracts/fixtures plus compiled C++ observation core; no ROS adapter build",
+    "bash_runbook_blocks": 9,
+    "embedded_runbook_python_blocks": 2,
+    "structural_audit": "PASS",
+    "protected_hashes_unchanged": true,
+    "test_log_sha256": "430a7123578008e4038db5cd48033f9dff7d99371f8c28b1ccf5c5ccc4eafafb",
+    "checks_log_sha256": "92bd9e35e6041275501287d592fa24cb09e5103030ee464295e75ff1317ccd8f",
+    "final_review_regressions": [
+      "Clock/sensors frozen together cannot pass freshness",
+      "Recent receipt of unchanged clock cannot pass",
+      "Missing wall-time clock evidence fails",
+      "Dynamic TF requires multiple advancing stamps"
+    ]
+  },
+  "protected_source_sha256": {
+    "src/gps_truck_nav/truck_bringup/params/truck_nav2_params.yaml": "722169c640ac8a37c10ca1097ff212366bac7ae58ac2f596608bfc7a9454eef7",
+    "src/gps_truck_nav/truck_bringup/params/dual_ekf_navsat_params.yaml": "e73041ad33abff6f61b7d834910922d6af9936c234453bdbeedfac8c77a8f2d7",
+    "src/gps_truck_nav/truck_bringup/models/arocs_truck/model.sdf": "b8f8fc8b20a129694eed58bfd439c770e112a70fcf0e6da37bd9595f7e7ca8f2",
+    "src/gps_truck_nav/truck_bringup/urdf/arocs_truck.urdf": "863a35defbc79b75debb4e2650a874730c1bbd6dfd64c4b2a10f763778b7e3a1"
+  },
+  "analysis_commit": "36ba76823cc7a124540412cf3ce09c73e6cd1d05",
+  "analysis_worktree_clean": true,
+  "not_executed_in_work": [
+    "Docker build",
+    "ROS-dependent C++ adapter build",
+    "installed Iron transport smoke",
+    "ROS/Gazebo launch",
+    "effective runtime parameter queries",
+    "mission",
+    "Optuna",
+    "Virtual Lanes"
+  ],
+  "unresolved_before_motion": [
+    "geometric localization and sensor frame/lever-arm validation",
+    "GPS/IMU covariance/fusion policy",
+    "TF unique authorities in live messages",
+    "MPPI yaw-rate to Gazebo steering command interface",
+    "route/frame/reference alignment"
+  ],
+  "next_runtime_requirements": [
+    "new IMAGE_VALIDATED",
+    "effective parameters match canonical costmaps",
+    "both navigator paths/plugins match prospective BT contract",
+    "seven Nav2 lifecycle nodes and two costmap nodes ACTIVE",
+    "independent review of structured diagnostics and raw evidence"
+  ],
+  "mission_ready": false,
+  "gate0": "NOT_YET_VERIFIED",
+  "gate1": "NOT_YET_VERIFIED"
+}
