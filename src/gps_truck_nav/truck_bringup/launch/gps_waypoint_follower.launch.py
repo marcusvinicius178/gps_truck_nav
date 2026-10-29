@@ -38,6 +38,9 @@ def generate_launch_description():
         DeclareLaunchArgument('container_name', default_value='nav2_container'),
         DeclareLaunchArgument('use_gpu', default_value='false', description='Opt in to NVIDIA PRIME offload'),
         DeclareLaunchArgument('use_xcb', default_value='true'),
+        DeclareLaunchArgument(
+            'publish_legacy_cloud_tf', default_value='true',
+            description='Retain legacy cloud TF; disable for the audited URDF-only sensor transform'),
     ]
     return LaunchDescription(arguments + [
         SetEnvironmentVariable('__NV_PRIME_RENDER_OFFLOAD', '1', condition=IfCondition(lc('use_gpu'))),
@@ -65,9 +68,11 @@ def generate_launch_description():
         include('mapviz.launch.py', {
             'mapviz_config': lc('mapviz_config'), 'use_sim_time': lc('use_sim_time'),
         }, IfCondition(lc('use_mapviz'))),
-        # Retained transform. The URDF also defines cloud; see docs/KNOWN_LIMITATIONS.md.
+        # Compatibility default: the URDF also defines base_link -> cloud.
+        # New audited trials disable this legacy publisher to avoid two authorities.
         Node(
             package='tf2_ros', executable='static_transform_publisher',
             name='static_transform_cloud', output='screen',
+            condition=IfCondition(lc('publish_legacy_cloud_tf')),
             arguments=['0', '0', '0', '0', '0', '0.70710678', '0.70710678', 'base_link', 'cloud']),
     ])
