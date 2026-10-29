@@ -1,0 +1,31 @@
+validator Bash syntax: exit=0
+
+validator complete embedded Python compile: PASS
+
+runbook Bash block 1: exit=0
+
+runbook Bash block 2: exit=0
+
+runbook Bash block 3: exit=0
+
+runbook Bash block 4: exit=0
+
+runbook Bash block 5: exit=0
+
+runbook Bash block 6: exit=0
+
+repository structural audit: exit=0
+CHECK YAML (unique keys): 15
+CHECK Python/launch syntax: 52
+CHECK XML syntax: 35
+CHECK unique canonical packages: 3
+CHECK installed Python entry points: 8
+CHECK world/waypoint site consistency (not alignment or runtime): 1
+CHECK required mesh references: 9
+PASS: structural audit
+
+canonical navigation/localization/SDF/URDF hashes unchanged: PASS
+
+Dockerfile, Docker ignore and local build/probe helper unchanged: PASS
+
+git diff check: exit=0

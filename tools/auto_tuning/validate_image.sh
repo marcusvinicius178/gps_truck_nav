@@ -27,6 +27,11 @@ def add(name, passed, **details):
     checks.append({'name': name, 'passed': bool(passed), **details})
 
 
+def output_text(value):
+    # TimeoutExpired may contain bytes even when subprocess.run uses text=True.
+    return value.decode('utf-8', errors='replace') if isinstance(value, bytes) else value or ''
+
+
 def command(name, argv, timeout=20):
     try:
         completed = subprocess.run(argv, capture_output=True, text=True,
@@ -34,14 +39,39 @@ def command(name, argv, timeout=20):
         record = {'name': name, 'argv': argv, 'returncode': completed.returncode,
                   'stdout': completed.stdout, 'stderr': completed.stderr,
                   'timed_out': False}
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as error:
         record = {'name': name, 'argv': argv, 'returncode': None,
-                  'stdout': '', 'stderr': 'Command timed out', 'timed_out': True}
+                  'stdout': output_text(error.stdout), 'stderr': output_text(error.stderr),
+                  'timed_out': True, 'error': 'Command timed out'}
     except OSError as error:
         record = {'name': name, 'argv': argv, 'returncode': None,
                   'stdout': '', 'stderr': str(error), 'timed_out': False}
-    record['passed'] = record['returncode'] == 0
+    record['process_succeeded'] = record['returncode'] == 0
+    record['passed'] = record['process_succeeded']
     checks.append(record)
+    return record
+
+
+def gazebo_version_check():
+    record = command('gazebo_version', ['gzserver', '--version'])
+    # Classic 11.10.2 Server::ParseArgs prints the version and returns false;
+    # server_main.cc returns -1 (255 on Linux), before server->Run().
+    # This exception belongs ONLY to this version query, not command() generally.
+    # https://github.com/gazebosim/gazebo-classic/blob/gazebo11_11.10.2/gazebo/Server.cc
+    # https://github.com/gazebosim/gazebo-classic/blob/gazebo11_11.10.2/gazebo/server_main.cc
+    banner = re.compile(r'Gazebo multi-robot simulator, version ([0-9]+\.[0-9]+\.[0-9]+)')
+    versions = {match.group(1) for stream in (record['stdout'], record['stderr'])
+                for line in stream.splitlines() if (match := banner.fullmatch(line.strip()))}
+    version = next(iter(versions)) if len(versions) == 1 else None
+    major_11 = version is not None and version.split('.')[0] == '11'
+    accepted = (not record['timed_out'] and version is not None and
+                (record['returncode'] == 0 or (record['returncode'] == 255 and major_11)))
+    record.update(
+        passed=accepted, detected_version=version, version_identified=accepted,
+        accepted_nonzero_exit=accepted and record['returncode'] == 255,
+        validation_scope='VERSION_IDENTIFICATION_ONLY', simulator_runtime_verified=False)
+    add('gazebo_major_11', accepted and major_11, detected_version=version,
+        observed=(record['stdout'] + '\n' + record['stderr']).strip())
     return record
 
 
@@ -65,11 +95,7 @@ with tempfile.TemporaryDirectory(prefix='nav2-image-smoke-', dir='/tmp') as temp
         add('executable_' + executable, shutil.which(executable) is not None,
             path=shutil.which(executable))
 
-    gazebo = command('gazebo_version', ['gzserver', '--version'])
-    gazebo_text = gazebo['stdout'] + '\n' + gazebo['stderr']
-    add('gazebo_major_11', bool(re.search(r'Gazebo(?: multi-robot simulator)?(?:,)?\s+version\s+11\.',
-                                        gazebo_text, re.IGNORECASE)),
-        observed=gazebo_text.strip())
+    gazebo_version_check()
 
     # These checks do not call rclpy.init() or create DDS participants.
     for module in ('rclpy', 'rclpy.serialization', 'rosbag2_py', 'rosidl_runtime_py.utilities',
@@ -151,6 +177,7 @@ print(json.dumps({
     'completed_at_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
     'gate0': 'NOT_YET_VERIFIED', 'gate1': 'NOT_YET_VERIFIED', 'checks': checks,
     'limits': [
+        'Gazebo version identification may accept exit 255 with an exact Classic 11 banner; the original code/output remain evidence and do not prove simulator operation.',
         'No Gazebo server or Nav2 node was launched; --show-args only parsed the launch description.',
         'Library presence/ldd and plugin XML do not prove pluginlib loading or correct runtime semantics.',
         'MCAP registration does not prove recording/reading a real bag.',

@@ -58,6 +58,45 @@ O helper imprime o caminho de cada log; a saída extensa de pull/build fica ness
 
 **Primeiro ponto de retorno:** se o build falhar, envie `build/status.json`, `build/commands.jsonl` e os logs indicados. Não executar o probe com uma imagem diferente escolhida manualmente.
 
+### 2.1. Repetir após a correção de `gzserver --version`
+
+O proprietário informou que a imagem do commit `6af48f2` foi construída e que apenas o check `gazebo_version` falhou: banner Classic 11.10.2 correto, retorno 255. No source upstream dessa versão, `Server::ParseArgs()` imprime a versão e retorna false; `server_main.cc` retorna -1 antes de `server->Run()`. No Linux, o status observado é 255. Isso explica a consulta de versão; não comprova execução funcional do simulador.
+
+O validador agora aceita essa combinação exclusivamente em `gzserver --version`: banner completo Classic 11 com versão numérica inequívoca, término sem timeout e retorno 0 ou 255. Mantém `returncode`, stdout/stderr, `process_succeeded` e `accepted_nonzero_exit` no JSON. `validation_scope=VERSION_IDENTIFICATION_ONLY` e `simulator_runtime_verified=false` deixam o limite explícito. Outros comandos continuam exigindo exit zero. Saída ausente/inválida/conflitante, outro major com 255, outros códigos/sinais e timeout continuam reprovando.
+
+**Diretório de trabalho:** o checkout dentro do `task_root` anterior, sem alterações locais. Este bloco busca a revisão da PR, preserva o diretório `build` anterior e cria uma tentativa exclusiva. Se ainda estiver no mesmo terminal, `task_root` já está definido; caso contrário, o comando solicita o caminho completo impresso na execução anterior. Não selecionar um ambiente CARLA/Autoware.
+
+```bash
+if [[ -z "${task_root:-}" ]]; then
+  read -r -p 'Caminho completo do diretório nav2-phase-a-ipt-sim-01 anterior: ' task_root
+fi
+retry_root=$(mktemp -d "$task_root/smoke-retry.XXXXXXXX")
+printf 'Novas evidências: %s\n' "$retry_root"
+(
+  set -euo pipefail
+  test -n "$retry_root"
+  test -d "$retry_root"
+  test -f "$task_root/build/status.json"
+  cd "$task_root/gps_truck_nav"
+  test -z "$(git status --porcelain --untracked-files=all)"
+  git fetch origin engineering/2026-10-preflight-gates \
+    2>&1 | tee "$retry_root/git_fetch.log"
+  GIT_LFS_SKIP_SMUDGE=1 git checkout --detach FETCH_HEAD
+  git rev-parse HEAD > "$retry_root/checkout_commit.txt"
+  /usr/bin/python3 -I tools/auto_tuning/local_phase_a.py build \
+    --repo "$task_root/gps_truck_nav" \
+    --output-dir "$retry_root/build"
+)
+```
+
+Não usar `--no-cache`, prune ou apagar a imagem anterior. Como o Dockerfile e os inputs de APT/C++ não mudam nesta correção, essas camadas podem aparecer como `CACHED` em `build/build.log` se o digest da base e o cache local continuarem iguais. A mudança é copiada depois do build C++; somente a parte final da imagem precisa ser atualizada nesse caso. O helper ainda faz pull da base e registra seu digest: se ele mudar ou o cache não existir, não há garantia de reutilização. Um novo image ID é esperado; não editar o status anterior para transformá-lo em sucesso.
+
+Retornar `retry_root/build/status.json`, `image_validation_run.log`, `build.log` e `commands.jsonl` (o caminho real de `retry_root` é impresso acima). O JSON do smoke continua usando `IMAGE_SMOKE_VALIDATED`; o helper só grava `IMAGE_VALIDATED` após a checagem, cópia do manifesto e cleanup completos. O retorno 255 deve permanecer no registro `gazebo_version`, agora com `process_succeeded=false` e `accepted_nonzero_exit=true` quando identificado corretamente.
+
+**Parar aqui para revisar o novo resultado.** Não executar o bringup desta tentativa antes de `IMAGE_VALIDATED`. Quando avançarmos à seção 3, usar `--build-dir "$retry_root/build"` e um novo `--output-dir "$retry_root/probe"`, mantendo o mesmo checkout congelado. Para empacotar somente esta tentativa pelo bloco da seção 4, passar `"$retry_root"` como argumento do Python em vez de `"$task_root"`. Gates 0/1 continuam não verificados; todos os bloqueios de missão permanecem.
+
+Fontes da correção: [Server::ParseArgs, Classic 11.10.2](https://github.com/gazebosim/gazebo-classic/blob/gazebo11_11.10.2/gazebo/Server.cc), [main de gzserver](https://github.com/gazebosim/gazebo-classic/blob/gazebo11_11.10.2/gazebo/server_main.cc).
+
 ## 3. Depois de IMAGE_VALIDATED: bringup headless diagnóstico
 
 **Diretório de trabalho:** o mesmo checkout novo. **Pré-requisitos:** `task_root` mantido no terminal, `build/status.json` aprovado pelo smoke check, imagem existente no daemon local e checkout intacto. Em outro terminal, recupere o caminho impresso na seção 2 e atribua-o a `task_root` antes de continuar; não escolha arbitrariamente um build antigo.
