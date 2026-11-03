@@ -140,7 +140,7 @@ class ParameterContractTests(unittest.TestCase):
         self.assertEqual(check(self.report, 'effective_plugin_parameters:/planner_server')['status'], 'FAIL')
         target['descriptors']['GridBased.max_iterations']['type'] = 0
         target['values']['GridBased.max_iterations'] = {'type': 0, 'value': None}
-        self.assertEqual(self.entry('GridBased.max_iterations')['DECLARED'], 'NO')
+        self.assertEqual(self.entry('GridBased.max_iterations')['DECLARED'], 'NOT_SET')
         self.assertEqual(check(self.report, 'effective_plugin_parameters:/planner_server')['status'], 'FAIL')
 
     def test_types_finiteness_and_arrays_are_strict(self):
@@ -193,6 +193,35 @@ class ParameterContractTests(unittest.TestCase):
         target['status'] = 'MAPPED_IDENTIFIED'
         target['records'][0]['sha256'] = None
         self.assertEqual(check(self.report, 'plugin_binary_association:/planner_server')['status'], 'UNKNOWN')
+
+    def test_observed_undeclared_is_distinct_from_version_support_and_rpc_failure(self):
+        node = self.report['nodes']['/controller_server']
+        key = 'FollowPath.wz_min'
+        node['values'].pop(key)
+        node['descriptors'].pop(key)
+        node['declarations'] = {key: {'status': 'UNDECLARED',
+            'evidence': 'LIST_ABSENT_AND_TWO_SINGLETON_RESPONSES'}}
+        item = self.entry(key)
+        self.assertEqual(item['DECLARED'], 'NO')
+        self.assertEqual(item['EFFECTIVE'], 'NOT_APPLICABLE_UNDECLARED')
+        self.assertEqual(item['AVAILABILITY'], 'UNSUPPORTED_VERSION')
+        self.assertEqual(item['source_consumer'], 'NO_READ_SITE_IDENTIFIED')
+        self.assertFalse(item['tuning_eligible'])
+        self.assertEqual(check(self.report, 'unconsumed_yaml_parameters:/controller_server')['status'], 'BLOCKED_REVIEW')
+        self.report['provenance']['packages']['nav2_mppi_controller']['version'] = 'unknown'
+        self.assertEqual(self.entry(key)['AVAILABILITY'], 'UNDECLARED')
+        node['declarations'] = {}
+        self.assertEqual(self.entry(key)['DECLARED'], 'UNKNOWN')
+        self.assertEqual(check(self.report, 'optional_parameter_declarations:/controller_server')['status'], 'UNKNOWN')
+
+    def test_inactive_and_conditional_absence_are_not_unsupported_version(self):
+        node = self.report['nodes']['/controller_server']
+        for key in ('FollowPath.inversion_xy_tolerance', 'general_goal_checker.plugin'):
+            node['values'].pop(key)
+            node['descriptors'].pop(key)
+            node.setdefault('declarations', {})[key] = {'status': 'UNDECLARED'}
+            self.assertEqual(self.entry(key)['AVAILABILITY'], 'UNDECLARED')
+            self.assertNotEqual(self.entry(key)['source_consumer'], 'NO_READ_SITE_IDENTIFIED')
 
     def test_configure_logs_record_only_printed_subset_and_iron_pathalign_spelling(self):
         text = '\n'.join([
@@ -260,6 +289,7 @@ class FakeNode:
         self.expected = contract.build_contract(CANONICAL)['nodes']
         self.policy, self.ready = policy, ready
         self.clients, self.calls, self.futures, self.counts = {}, [], [], {}
+        self.undeclared = {target: set() for target in self.expected}
 
     def create_client(self, kind, service):
         owner = self
@@ -276,6 +306,8 @@ class FakeNode:
                 key = (service, tuple(names or []))
                 owner.counts[key] = owner.counts.get(key, 0) + 1
                 behavior = owner.policy(service, names, owner.counts[key]) if owner.policy else None
+                if behavior is None and names and any(name in owner.undeclared[target] for name in names):
+                    behavior = 'empty'
                 owner.calls.append((service, names))
                 if behavior == 'raise':
                     raise RuntimeError('RPC start failed')
@@ -294,7 +326,12 @@ class FakeNode:
                         read_only=False, dynamic_typing=False, description='', additional_constraints='') for name in names]
                     result = SimpleNamespace(descriptors=[] if behavior == 'empty' else descriptors)
                 else:
-                    result = SimpleNamespace(result=SimpleNamespace(names=list(owner.expected[target]), prefixes=[]))
+                    listed = [name for name in owner.expected[target] if name not in owner.undeclared[target]]
+                    if behavior == 'empty_list':
+                        listed = []
+                    elif behavior == 'duplicate_list':
+                        listed += listed[:1]
+                    result = SimpleNamespace(result=SimpleNamespace(names=listed, prefixes=[]))
                 if behavior == 'error':
                     result = RuntimeError('RPC result failed')
                 future = Future(result, pending=behavior == 'timeout')
@@ -401,6 +438,93 @@ class ParameterProbeTests(unittest.TestCase):
         result = self.run_window(collector)
         self.assertEqual(result['collection_status'], 'COMPLETE')
         self.assertEqual(check(result, 'effective_plugin_parameters:/planner_server')['status'], 'FAIL')
+
+    def test_corroborated_optional_absence_is_resolved_once_without_fabricated_values(self):
+        collector = self.make()
+        absent = {'/planner_server': {'planner_patience', 'GridBased.allow_primitive_interpolation'},
+                  '/controller_server': {'FollowPath.wz_min', 'general_goal_checker.plugin',
+                                         'FollowPath.inversion_xy_tolerance'}}
+        self.node.undeclared = absent
+        result = self.run_window(collector)
+        self.assertEqual(result['collection_status'], 'COMPLETE')
+        self.assertEqual(result['required_collection_status'], 'COMPLETE')
+        self.assertEqual(result['readback_collection_status'], 'PARTIAL')
+        self.assertEqual(len(result['known_undeclared_parameters']), 5)
+        for job in result['jobs']:
+            if job['names'] and job['names'][0] in absent[job['node']]:
+                self.assertEqual(job['status'], 'UNDECLARED')
+                self.assertEqual(len(job['attempts']), 1)
+                self.assertEqual(job['attempts'][0]['status'], 'EMPTY_RESPONSE')
+                self.assertEqual(job['attempts'][0]['response_payload'],
+                                 {'values': []} if job['method'] == 'get' else {'descriptors': []})
+        for target, keys in absent.items():
+            self.assertEqual(result['nodes'][target]['list_cross_check']['status'], 'CONSISTENT')
+            for key in keys:
+                self.assertNotIn(key, result['nodes'][target]['values'])
+                self.assertNotIn(key, result['nodes'][target]['descriptors'])
+                self.assertEqual(result['nodes'][target]['declarations'][key]['status'], 'UNDECLARED')
+            self.assertEqual(check(result, 'optional_parameter_declarations:' + target)['status'], 'PASS')
+            self.assertEqual(check(result, 'effective_plugin_parameters:' + target)['status'], 'PASS')
+
+    def test_absence_waits_for_bounded_list_retry_without_repeating_singletons(self):
+        collector = self.make(lambda service, names, number:
+            'timeout' if service.endswith('/list_parameters') and number == 1 else None)
+        self.node.undeclared['/controller_server'] = {'FollowPath.wz_min'}
+        result = self.run_window(collector, iterations=200)
+        selected = [job for job in result['jobs'] if job['names'] == ['FollowPath.wz_min']]
+        self.assertTrue(all(job['status'] == 'UNDECLARED' and len(job['attempts']) == 1 for job in selected))
+        self.assertEqual(result['collection_status'], 'COMPLETE')
+
+    def test_empty_or_malformed_list_cannot_establish_absence(self):
+        for list_behavior in ('empty_list', 'duplicate_list', 'timeout'):
+            with self.subTest(list_behavior=list_behavior):
+                collector = self.make(lambda service, names, number:
+                    list_behavior if service.endswith('/list_parameters') else None)
+                self.node.undeclared['/controller_server'] = {'FollowPath.wz_min'}
+                result = self.run_window(collector, iterations=200)
+                self.assertEqual(result['collection_status'], 'PARTIAL')
+                self.assertEqual(result['known_undeclared_parameters'], [])
+                self.assertEqual(result['required_collection_status'], 'COMPLETE')
+
+    def test_absent_list_with_positive_descriptor_is_inconsistent_not_undeclared(self):
+        collector = self.make(lambda service, names, number:
+            'present' if names == ['FollowPath.wz_min'] and service.endswith('/describe_parameters') else None)
+        self.node.undeclared['/controller_server'] = {'FollowPath.wz_min'}
+        result = self.run_window(collector)
+        declaration = result['nodes']['/controller_server']['declarations']['FollowPath.wz_min']
+        self.assertEqual(declaration['status'], 'INCONSISTENT_OBSERVATIONS')
+        self.assertEqual(result['collection_status'], 'PARTIAL')
+        self.assertEqual(check(result, 'optional_parameter_declarations:/controller_server')['status'], 'UNKNOWN')
+
+    def test_failed_rpc_is_not_relabelled_undeclared_by_list_alone(self):
+        collector = self.make(lambda service, names, number:
+            'error' if names == ['FollowPath.wz_min'] and service.endswith('/describe_parameters') else None)
+        self.node.undeclared['/controller_server'] = {'FollowPath.wz_min'}
+        result = self.run_window(collector)
+        selected = [job for job in result['jobs'] if job['names'] == ['FollowPath.wz_min']]
+        self.assertTrue(all(job['status'] == 'ERROR' for job in selected))
+        self.assertTrue(all(len(job['attempts']) == 3 for job in selected))
+        self.assertEqual(result['known_undeclared_parameters'], [])
+
+    def test_explicit_not_set_with_consistent_list_is_preserved_as_returned(self):
+        collector = self.make(lambda service, names, number:
+            'unset' if names == ['FollowPath.wz_min'] else None)
+        self.node.undeclared['/controller_server'] = {'FollowPath.wz_min'}
+        result = self.run_window(collector)
+        node = result['nodes']['/controller_server']
+        self.assertEqual(node['declarations']['FollowPath.wz_min']['status'], 'UNDECLARED')
+        self.assertEqual(node['values']['FollowPath.wz_min'], {'type': 0, 'value': None})
+        self.assertEqual(result['collection_status'], 'COMPLETE')
+
+    def test_window_close_preserves_unresolved_empty_payload_and_does_not_approve(self):
+        collector = self.make(lambda service, names, number:
+            'timeout' if service.endswith('/list_parameters') else None)
+        self.node.undeclared['/controller_server'] = {'FollowPath.wz_min'}
+        result = self.run_window(collector, iterations=100, step=0.001)
+        selected = [job for job in result['jobs'] if job['names'] == ['FollowPath.wz_min']]
+        self.assertTrue(all(job['status'] == 'UNRESOLVED_EMPTY_RESPONSE' for job in selected))
+        self.assertTrue(all('response_payload' in job['attempts'][-1] for job in selected))
+        self.assertEqual(result['collection_status'], 'PARTIAL')
 
     def test_wrong_descriptor_name_is_preserved_as_protocol_error(self):
         collector = self.make(lambda service, names, number: 'wrong_descriptor')

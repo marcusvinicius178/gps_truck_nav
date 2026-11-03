@@ -77,6 +77,11 @@ def expected_parameters(canonical):
                               **{name + '.plugin': bt[name]['plugin'] for name in bt['navigators']}}
     for name in ('planner_server', 'controller_server'):
         result['/' + name] = {'use_sim_time': True}
+    smoother = canonical['velocity_smoother']['ros__parameters']
+    result['/velocity_smoother'] = {key: smoother[key] for key in (
+        'smoothing_frequency', 'scale_velocities', 'feedback', 'max_velocity', 'min_velocity',
+        'max_accel', 'max_decel', 'odom_topic', 'odom_duration', 'deadband_velocity', 'velocity_timeout')}
+    result['/velocity_smoother']['use_sim_time'] = True
     return result
 
 

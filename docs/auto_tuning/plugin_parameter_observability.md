@@ -15,9 +15,10 @@ Também não comprova, isoladamente, um defeito permanente de DDS: os serviços 
 os lifecycle nodes aparecem em observadores posteriores da mesma coleta.
 
 `parameter_probe.py` solicita nomes completos diretamente aos serviços
-`GetParameters` e `DescribeParameters`, sem depender do resultado de
-`ListParameters` nem do parsing de `ros2 param dump`. A listagem é evidência
-diagnóstica adicional. O contrato atual contém 40 nomes no planner e 88 no
+`GetParameters` e `DescribeParameters`, sem depender do parsing de
+`ros2 param dump`. ListParameters não é pré-requisito dos readbacks obrigatórios;
+é uma evidência necessária para classificar ausência opcional, junto das respostas
+dos dois serviços. O contrato atual contém 40 nomes no planner e 88 no
 controller, incluindo todos os campos configurados e defaults relevantes da
 versão auditada.
 
@@ -40,28 +41,67 @@ Há uma diferença relevante do serviço C++ Iron: com
 `ParameterNotDeclaredException` e uma resposta vazia para o lote inteiro, tanto
 em Get quanto em Describe. Por isso os parâmetros obrigatórios têm lotes próprios;
 os nomes opcionais, não consumidos ou condicionais são consultados individualmente
-depois dos obrigatórios. Resposta vazia permanece `ERROR`, sem fabricar um
-`PARAMETER_NOT_SET` ou afirmar qual exceção ocorreu. Não se usa List como pré-requisito.
+depois dos obrigatórios. List recebe prioridade antes dos opcionais. O schema 2
+preserva o payload de toda resposta, inclusive arrays vazios, sem fabricar um
+`PARAMETER_NOT_SET` nem afirmar qual exceção ocorreu dentro do servidor.
 Essa semântica foi conferida em
 [ParameterService rclcpp 21.0.8](https://github.com/ros2/rclcpp/blob/21.0.8/rclcpp/src/rclcpp/parameter_service.cpp)
 (blob `09237983396a7e8061a83d4c2c0a4381beb979f3`) e
 [NodeParameters](https://github.com/ros2/rclcpp/blob/21.0.8/rclcpp/src/rclcpp/node_interfaces/node_parameters.cpp)
 (blob `c8bb62e238e91238d398a787440fa8f6fe3ee51b`).
 
-`collection_status=COMPLETE` significa que todos os lotes explícitos Get/Describe
-receberam respostas completas, inclusive os opcionais. O campo separado
-`required_collection_status` resume apenas os obrigatórios. Uma resposta
-`PARAMETER_NOT_SET`, quando o servidor a devolve por item, é uma resposta
-completa; um parâmetro obrigatório ausente ou diferente gera `FAIL` na avaliação.
-Resposta parcial, erro ou timeout produz coleta `PARTIAL`. Falha da listagem não
-invalida respostas explícitas completas. Nenhum desses status equivale a Nav2
-saudável ou autorização para movimento.
+### Terceira revisão: ausência opcional conhecida não é falha RPC
+
+No ZIP do commit `a21403f`, os dois serviços devolveram 31 valores/descritores do
+planner e 76 do controller; os obrigatórios passaram. As listas recursivas
+contêm 39 e 89 nomes, respectivamente, e omitem exatamente os 21 nomes que
+geraram 42 jobs ERROR, cada um repetido três vezes. A listagem só ocorria depois
+dessas consultas. O dump CLI vazio do controller não invalida esses readbacks.
+
+A nova classificação `UNDECLARED` exige **simultaneamente**:
+
+1. ListParameters bem-sucedido, sem prefixo e com `depth=DEPTH_RECURSIVE` (0),
+   com nomes/prefixos válidos e sem duplicação.
+2. Todos os nomes obrigatórios presentes na lista, com descritores de tipo
+   declarado, para impedir que lista vazia ou truncada estabeleça ausência.
+3. Nome opcional ausente dessa lista e **ambas** as respostas singleton Get e
+   Describe vazias ou explicitamente `PARAMETER_NOT_SET`, recebidas no deadline.
+
+Os serviços não são uma transação atômica: o relatório registra tempos e escopo
+da janela. List ausente mais descritor/valor declarado é
+`INCONSISTENT_OBSERVATIONS`, não `UNDECLARED`; mudança concorrente permanece
+possível. Lista ausente/malformada, resposta tardia, erro RPC, timeout ou janela
+fechada não estabelecem ausência. Arrays vazios sem corroboração continuam
+erro/inconclusivos, com tentativas limitadas; obrigatórios mantêm a regra rigorosa.
+Uma ausência comprovada não é consultada novamente; os dois payloads originais
+ficam nas tentativas, sem entrada fictícia em `values` ou `descriptors`.
+
+| Campo de captura schema 2 | Significado |
+|---|---|
+| `collection_status=COMPLETE` | Todos os resultados Get/Describe estão resolvidos: resposta completa ou ausência opcional corroborada, sem observações contraditórias. |
+| `readback_collection_status` | Informa separadamente se todas as respostas Get/Describe tinham o número de itens solicitado. Arrays vazios continuam PARTIAL aqui, mesmo quando sua ausência foi classificada. |
+| `required_collection_status` | Apenas os lotes obrigatórios; ausências opcionais não mudam seu contrato. |
+| `known_undeclared_parameters` | Lista explícita de nomes e nós classificados como ausentes, com evidência detalhada em `nodes.*.declarations`. |
+
+`AVAILABILITY=UNSUPPORTED_VERSION` é uma conclusão separada e restrita: nome
+observado UNDECLARED, sem read site no caminho Nav2 1.2.10 auditado, versões dos
+pacotes correspondentes confirmadas, plugin correto e hashes instalado/mapeado
+associados. Não afirma falta de suporte em outras versões nem equivalência
+fonte-binário. Configuração de plugin inativo e condição desabilitada permanecem
+nessas categorias, sem chamar de versão incompatível. Versão ou associação
+desconhecida conserva apenas a evidência de ausência. `tuning_eligible=false` e
+`ACTUALLY_USED=NOT_VERIFIED` permanecem em todos os itens nesta etapa.
+
+Uma resposta `PARAMETER_NOT_SET`, quando retornada pelo servidor, é preservada;
+isoladamente não distingue parâmetro não declarado de declarado sem valor. Um
+obrigatório ausente/diferente continua FAIL/UNKNOWN conforme a evidência disponível.
+Nenhum status de captura equivale a Nav2 saudável ou autorização de movimento.
 
 ## Classes de evidência
 
 | Campo | O que demonstra | O que permanece sem demonstração |
 |---|---|---|
-| `DECLARED` | `DescribeParameters` devolveu um descritor com tipo declarado | Que um plugin lê o parâmetro |
+| `DECLARED` | YES para descritor tipado; NO só para ausência corroborada; NOT_SET preserva tipo 0 sem deduzir declaração | Que um plugin lê o parâmetro |
 | `EFFECTIVE` | `GetParameters` devolveu o tipo ROS e o valor esperados, no nó correto | Que o membro interno do plugin recebeu ou usou o valor |
 | `SOURCE_CONSUMER_IDENTIFIED` | Há uma leitura no código Nav2 1.2.10 auditado, com namespace e condição compatíveis | Identidade bit a bit entre a biblioteca instalada e a fonte upstream; execução do algoritmo |
 | `SOURCE_AUDIT_VERSION_MATCHED` | `package.xml` instalado informa 1.2.10 para o pacote correspondente | Ausência de patches do fornecedor nessa versão |

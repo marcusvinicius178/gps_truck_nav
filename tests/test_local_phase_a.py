@@ -94,10 +94,26 @@ class LocalPhaseTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def probe(self, runner=None):
+    def probe(self, runner=None, navigation_profile="canonical"):
         with mock.patch.object(phase, "source_snapshot", return_value=SOURCE):
             phase.probe(self.repo, self.build_dir, self.out, runner or self.runner,
-                        self.docker, self.state, warmup_seconds=1, sleep=lambda _: None)
+                        self.docker, self.state, warmup_seconds=1, sleep=lambda _: None,
+                        navigation_profile=navigation_profile)
+
+    def test_profile_launch_and_observer_are_bound_to_the_same_selection(self):
+        self.probe(navigation_profile='20kmh')
+        create = next(argv for name, argv, _ in self.runner.calls if name == 'headless_create')
+        collect = next(argv for name, argv, _ in self.runner.calls if name == 'runtime_probe')
+        self.assertIn('params_file:=/opt/auto_tuning/config/navigation_profiles/20kmh.yaml', create)
+        self.assertIn('NAV2_PHASE_A_PROFILE=20kmh', collect)
+        self.assertEqual(self.state['navigation_profile'], '20kmh')
+        self.assertFalse(self.state['mission_ready'])
+        self.assertEqual(self.runner.stop_count, 1)
+
+    def test_unknown_profile_is_rejected_before_any_container(self):
+        with self.assertRaises(phase.PhaseError):
+            self.probe(navigation_profile='90kmh')
+        self.assertFalse(self.runner.calls)
 
     def test_probe_is_isolated_bounded_and_never_sends_goal(self):
         self.probe()

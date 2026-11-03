@@ -1,6 +1,6 @@
 # Preparação local — ipt-sim-01, continuação da Fase A
 
-**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT_YET_VERIFIED.** O ZIP do commit `978ab23` confirma costmaps corretas, duas BTs Ackermann e sete lifecycle nodes ACTIVE; esses reparos permanecem preservados. A coleta terminou COMPLETE, mas o diagnóstico BLOCKED e `mission_ready=false`. Para a segunda revisão independente, seguir a **seção 2.3**: nova imagem com variante isolada TF/sensores e novo probe, sem movimento. As seções anteriores ficam como histórico operacional.
+**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT_YET_VERIFIED.** O ZIP do commit `a21403f` confirma TF/frames, odometria/juntas, costmaps, duas BTs, lifecycle e parâmetros obrigatórios; esses reparos permanecem preservados. A captura PARTIAL decorre de instrumentação, não comprova falha de navegação. Seguir agora a **seção 2.4**: build/probe, readback opcional dos perfis 20/25 km/h e visualização estritamente observacional. Nenhum movimento. As seções anteriores ficam como histórico operacional.
 
 ## 1. Ambiente confirmado e isolamento
 
@@ -280,6 +280,141 @@ PY
 ```
 
 Encaminhar o ZIP e o SHA-256 ao revisor independente. As pastas `build`, `smoke-retry.*` e `bringup-review.ZDIBJp1z` anteriores ficam intactas, assim como as imagens e containers parados. Se o cleanup desta tentativa for interrompido, usar o bloco completo da seção 4 com `stage_dir="$review2_root/probe"` (ou `build` para esse estágio), conferindo ID e labels. Não iniciar outra coleta com o mesmo output nem editar os manifests para reaproveitar imagem incompatível. A próxima decisão é do revisor; **OBSERVATIONS_COLLECTED não libera missão.**
+
+### 2.4. Terceira revisão: instrumentação, perfis e visualização
+
+Ler `third_independent_review.md`, `speed_limits_provenance.md`, `actuation_validation_protocol.md` e `visual_observation_runbook.md`. O MPPI 25 m/s não foi tratado como typo de 2,5. Os perfis experimentais completos estão separados do histórico e ainda bloqueados para atuação. O primeiro probe abaixo mantém `canonical` para isolar as correções de instrumentação.
+
+**Host:** ipt-sim-01. **Diretório inicial:** qualquer diretório desse host. **Pré-requisito:** checkout dedicado limpo, sem descartar alterações locais. Executar o bloco completo em Bash; o SHA exato desta entrega também consta na resposta de entrega. A pasta nova preserva todas as imagens, containers parados e evidências anteriores.
+
+```bash
+task_root="$HOME/nav2-phase-a-ipt-sim-01.pMbd0n06"
+review3_root=$(mktemp -d "$task_root/third-review.XXXXXXXX")
+printf 'Evidências desta revisão: %s\n' "$review3_root"
+(
+  set -euo pipefail
+  test -n "$review3_root"
+  test -d "$review3_root"
+  cd "$task_root/gps_truck_nav"
+  test -z "$(git status --porcelain --untracked-files=all)"
+  git fetch origin engineering/2026-10-preflight-gates \
+    2>&1 | tee "$review3_root/git_fetch.log"
+  GIT_LFS_SKIP_SMUDGE=1 git checkout --detach FETCH_HEAD
+  test -f tools/auto_tuning/visual_observer.py
+  test -f config/auto_tuning/navigation_profiles/manifest.json
+  git rev-parse HEAD > "$review3_root/checkout_commit.txt"
+  /usr/bin/python3 -I tools/auto_tuning/local_phase_a.py build \
+    --repo "$task_root/gps_truck_nav" \
+    --output-dir "$review3_root/build"
+  /usr/bin/python3 -I - "$review3_root/build/status.json" <<'PY'
+import json
+import sys
+if json.load(open(sys.argv[1])).get('status') != 'IMAGE_VALIDATED':
+    raise SystemExit('Imagem não validada; preserve os logs e não execute o probe.')
+PY
+  /usr/bin/python3 -I tools/auto_tuning/local_phase_a.py probe \
+    --repo "$task_root/gps_truck_nav" \
+    --build-dir "$review3_root/build" \
+    --output-dir "$review3_root/probe" \
+    --navigation-profile canonical
+)
+```
+
+Não usar `--no-cache`, prune ou reinício Docker. Não há APT novo nesta revisão; as camadas elegíveis de base/APT/colcon podem continuar em cache. Os scripts/configurações posteriores mudam. O smoke valida também os dois perfis completos e dependências estáticas do visor; não demonstra GUI funcional. Sem `source` de ROS nem instalação de pacotes no host.
+
+**Coleta de perfis, sem movimento:** após o build validado, o bloco seguinte inicia e encerra dois containers diagnósticos independentes, sempre sem goal/Twist. Não é comparação A/B de desempenho nem ensaio a 20/25 km/h; verifica os valores realmente aplicados. Cada tentativa tem saída própria. Pode ser executado antes ou depois da observação visual, sem mudar o checkout.
+
+```bash
+(
+  set -euo pipefail
+  cd "$task_root/gps_truck_nav"
+  /usr/bin/python3 -I tools/auto_tuning/local_phase_a.py probe \
+    --repo "$task_root/gps_truck_nav" \
+    --build-dir "$review3_root/build" \
+    --output-dir "$review3_root/probe-20kmh" \
+    --navigation-profile 20kmh
+  /usr/bin/python3 -I tools/auto_tuning/local_phase_a.py probe \
+    --repo "$task_root/gps_truck_nav" \
+    --build-dir "$review3_root/build" \
+    --output-dir "$review3_root/probe-25kmh" \
+    --navigation-profile 25kmh
+)
+```
+
+Ler `navigation_profile.json`, `speed_chain.json`, `plugin_parameters.json` e `readiness.json` em cada `runtime_probe/`. MPPI e smoother devem mostrar o mesmo teto prospectivo de 5,555555… ou 6,944444… m/s, yaw ±0,4 e ré −2,25. Valores efetivos não equivalem à velocidade do caminhão. O raio 11,6, limites físicos, `scale_velocities=false` e acelerações históricas permanecem explicitamente pendentes. Publishers do behavior_server que contornem o smoother continuam documentados; nenhuma interface de comando foi corrigida por simples redução de vmax.
+
+**Abrir a observação visual:** após o probe canônico acima concluir OBSERVATIONS_COLLECTED, no mesmo terminal:
+
+```bash
+(
+  set -euo pipefail
+  cd "$task_root/gps_truck_nav"
+  /usr/bin/python3 -I tools/auto_tuning/visual_observer.py start \
+    --repo "$task_root/gps_truck_nav" \
+    --build-dir "$review3_root/build" \
+    --probe-dir "$review3_root/probe" \
+    --output-dir "$review3_root/visual" \
+    --duration 900
+  /usr/bin/python3 -I tools/auto_tuning/visual_observer.py serve \
+    --session-dir "$review3_root/visual" \
+    --port 8765
+)
+```
+
+Abrir no navegador do ipt-sim-01 a URL local impressa pelo `serve`. Gazebo Classic e RViz rodam dentro do container; o navegador recebe somente imagens da tela. Não há canal de mouse/teclado para mover modelos, resetar física ou publicar goals. A câmera inicial é predefinida; pan/zoom interativo não está habilitado. RViz mostra as camadas e os tópicos configurados; plano/trajetória vazios são esperados sem planejamento. O modo tem duração limitada, mantém a rede do container `none` e não monta display/ROS do host.
+
+`Ctrl-C` no `serve` encerra a sessão própria. Para consultar ou parar explicitamente, usar outro terminal, substituindo somente o caminho final pelo valor de `review3_root` impresso acima:
+
+```bash
+read -r -p 'Caminho completo da pasta third-review desta tentativa: ' review3_root
+task_root="$HOME/nav2-phase-a-ipt-sim-01.pMbd0n06"
+cd "$task_root/gps_truck_nav"
+/usr/bin/python3 -I tools/auto_tuning/visual_observer.py status \
+  --session-dir "$review3_root/visual"
+/usr/bin/python3 -I tools/auto_tuning/visual_observer.py stop \
+  --session-dir "$review3_root/visual"
+```
+
+Não usar kill/stop globais. O comando stop verifica ID e labels e preserva os logs. Para detalhes de falhas de GUI, timeout, captura opcional e limitações, usar `visual_observation_runbook.md`. A sessão GUI não prova parada de atuação; o encerramento de um container de simulação e a parada medida de um caminhão são critérios diferentes.
+
+**Empacotar o retorno ao revisor**, após encerrar a visualização (se iniciada):
+
+```bash
+/usr/bin/python3 -I - "$review3_root" <<'PY'
+from pathlib import Path
+import hashlib
+import json
+import sys
+import zipfile
+root = Path(sys.argv[1]).resolve(strict=True)
+archive = root / 'nav2_phase_a_third_review_evidence.zip'
+allowed = {'.json', '.jsonl', '.log', '.txt', '.tsv', '.yaml', '.rviz', '.world', '.png'}
+with zipfile.ZipFile(archive, 'x', zipfile.ZIP_DEFLATED) as output:
+    for name in ('checkout_commit.txt', 'git_fetch.log'):
+        path = root / name
+        if path.is_file() and not path.is_symlink():
+            output.write(path, path.relative_to(root))
+    for name in ('build', 'probe', 'probe-20kmh', 'probe-25kmh', 'visual'):
+        directory = root / name
+        if not directory.is_dir() or directory.is_symlink():
+            continue
+        for path in sorted(directory.rglob('*')):
+            if (path.is_file() and not path.is_symlink()
+                    and path.resolve().is_relative_to(directory.resolve())
+                    and (path.suffix in allowed or path.name == 'container.id')):
+                output.write(path, path.relative_to(root))
+digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+with (root / 'archive_identity.json').open('x') as stream:
+    json.dump({'archive': archive.name, 'sha256': digest}, stream, indent=2)
+    stream.write('\n')
+print(archive)
+print('SHA-256:', digest)
+PY
+```
+
+O ZIP não inclui meshes, imagens Docker, framebuffer XWD nem dados históricos. Imagens PNG só existirão se a captura opcional tiver sido solicitada. Não apagar uma tentativa para repetir: criar outro `third-review.*`. No diagnóstico schema 2, `collection_status=COMPLETE` pode incluir ausência opcional comprovada, enquanto `readback_collection_status=PARTIAL` preserva que nem todo nome recebeu valor. `required_collection_status` deve continuar COMPLETE; UNDECLARED/UNSUPPORTED_VERSION nunca tornam um knob elegível ao tuning.
+
+Retornar o ZIP ao revisor. O próximo movimento depende de revisão da atuação, geometria, autoridade, parada, percepção/localização e autorização posterior explícita. **Nenhum comando desta seção envia objetivo, Twist, missão ou inicia Optuna/Virtual Lanes.**
 
 ## 3. Depois de IMAGE_VALIDATED: bringup headless diagnóstico
 

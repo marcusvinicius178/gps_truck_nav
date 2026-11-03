@@ -20,6 +20,8 @@ from parameter_probe import PluginParameterProbe
 from plugin_parameter_contract import installed_plugin_provenance, parse_configuration_logs, assess_plugin_parameters
 from runtime_binary_identity import inspect_runtime_binaries
 from audit_ackermann_geometry import audit_model
+from prepare_navigation_profiles import load_selected_profile
+from speed_chain_evidence import speed_chain_evidence
 
 
 def stamp(value):
@@ -89,6 +91,17 @@ def collect(output, duration, observed, expected):
     canonical = share / 'params/truck_nav2_params.yaml'
     localization = Path('/opt/auto_tuning/config/dual_ekf_navsat_gate0.yaml')
     canonical_config = yaml.safe_load(canonical.read_text())
+    profile_name = os.environ.get('NAV2_PHASE_A_PROFILE', 'canonical')
+    if profile_name not in ('canonical', '20kmh', '25kmh'):
+        raise ValueError('Unknown NAV2_PHASE_A_PROFILE')
+    profile_directory = Path('/opt/auto_tuning/config/navigation_profiles')
+    if profile_name != 'canonical':
+        canonical_config, profile_entry = load_selected_profile(canonical, profile_directory, profile_name)
+    else:
+        profile_entry = {'scope': 'Canonical configuration readback; historical behavior not inferred from YAML.'}
+    observed['navigation_profile'] = {'name': profile_name, 'source': str(canonical),
+        'source_sha256': digest(canonical), 'entry': profile_entry,
+        'scope': 'PARAMETER_VERIFICATION_ONLY', 'motion_authorized': False}
     expected.update(expected_parameters(canonical_config))
     localization_config = yaml.safe_load(localization.read_text())
     datum = localization_config['navsat_transform']['ros__parameters']['datum']
@@ -103,6 +116,9 @@ def collect(output, duration, observed, expected):
         configured = localization_config[name]['ros__parameters']
         expected['/' + name] = {key: configured[key] for key in keys}
     observed['source_files'] = {str(path): digest(path) for path in (canonical, localization)}
+    if profile_name != 'canonical':
+        for path in (profile_directory / (profile_name + '.yaml'), profile_directory / 'manifest.json'):
+            observed['source_files'][str(path)] = digest(path)
     observed['expected_parameters'] = expected
     observed['datum_configuration'] = {'latitude': datum[0], 'longitude': datum[1], 'yaw_radians': datum[2],
                                        'query_altitude_m': 0.0,
@@ -120,13 +136,13 @@ def collect(output, duration, observed, expected):
     for relative in observed['model_variant']['variant_sha256']:
         path = profile.parent / relative
         observed['source_files'][str(path)] = digest(path)
-    observed['runtime_binary_identity'] = inspect_runtime_binaries()
+    observed['runtime_binary_identity'] = inspect_runtime_binaries(launch_log=output.parent / 'bringup_before_probe.log')
     observed['plugin_provenance'] = installed_plugin_provenance()
     observed['plugin_provenance']['runtime_binary_identity'] = observed['runtime_binary_identity']
     observed['ackermann_geometry'] = audit_model(
         profile.parent / 'models/arocs_truck_tf_sensors/model.sdf',
         canonical_config['planner_server']['ros__parameters']['GridBased']['minimum_turning_radius'])
-    observed['ackermann_geometry']['requested_radius_source'] = 'Canonical planner YAML; effective values are queried separately.'
+    observed['ackermann_geometry']['requested_radius_source'] = 'Selected navigation YAML; effective values are queried separately.'
 
     rclpy.init()
     node = rclpy.create_node('phase_a_readiness_' + str(os.getpid()),
@@ -406,7 +422,8 @@ def main(argv=None):
     if not output.is_dir():
         parser.error('output_directory must already exist')
     for name in ('readiness.json', 'readiness_observations.json', 'tf_authority.json', 'tf_authority_process.log',
-                 'plugin_parameters.json', 'runtime_binary_identity.json', 'localization_alignment.json', 'ackermann_geometry.json'):
+                 'plugin_parameters.json', 'runtime_binary_identity.json', 'localization_alignment.json', 'ackermann_geometry.json',
+                 'navigation_profile.json', 'speed_chain.json'):
         if (output / name).exists() or (output / name).is_symlink():
             parser.error('Refusing to replace earlier evidence: ' + name)
     observed = {'schema_version': 1, 'started_at_utc': datetime.now(timezone.utc).isoformat(),
@@ -422,6 +439,7 @@ def main(argv=None):
         observed.update(collection_status='FAILED', error=f'{type(error).__name__}: {error}')
     observed['finished_at_utc'] = datetime.now(timezone.utc).isoformat()
     try:
+        observed['speed_chain'] = speed_chain_evidence(observed)
         result = assess(observed, expected)
     except Exception as error:
         observed.update(collection_status='FAILED', assessment_error=f'{type(error).__name__}: {error}')
@@ -433,6 +451,8 @@ def main(argv=None):
     for filename, key in (('plugin_parameters.json', 'plugin_parameters'),
                           ('runtime_binary_identity.json', 'runtime_binary_identity'),
                           ('localization_alignment.json', 'alignment'),
+                          ('navigation_profile.json', 'navigation_profile'),
+                          ('speed_chain.json', 'speed_chain'),
                           ('ackermann_geometry.json', 'ackermann_geometry')):
         write_new(output / filename, observed.get(key, {'status': 'UNAVAILABLE'}))
     print(json.dumps({key: result[key] for key in ('collection_status', 'diagnostic_status', 'mission_ready', 'gate0', 'gate1')}))

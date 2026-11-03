@@ -215,10 +215,12 @@ def assess_plugin_parameters(report, provenance=None):
         plugin_sample = actual.get('values', {}).get(plugin_key, {})
         plugin_identity_matches = (plugin_sample.get('type') == 4 and
                                    plugin_sample.get('value') == expected[plugin_key]['expected'])
-        missing, differences, unsupported = [], {}, []
+        missing, differences, unsupported, optional_unknown = [], {}, [], []
         for key, wanted in expected.items():
             sample = actual.get('values', {}).get(key)
             description = actual.get('descriptors', {}).get(key)
+            declaration = actual.get('declarations', {}).get(key, {})
+            known_absent = declaration.get('status') == 'UNDECLARED'
             declared = bool(description and description.get('type', 0) != 0)
             matches = bool(sample and sample.get('type') == wanted['expected_type']
                            and same_value(wanted['expected'], sample.get('value')))
@@ -229,6 +231,9 @@ def assess_plugin_parameters(report, provenance=None):
                     differences[key] = {'expected': wanted, 'actual': sample, 'descriptor': description}
             if wanted['source_consumer'] == 'NO_READ_SITE_IDENTIFIED':
                 unsupported.append(key)
+            if not wanted['required'] and (declaration.get('status') == 'INCONSISTENT_OBSERVATIONS'
+                    or not known_absent and (sample is None or description is None)):
+                optional_unknown.append(key)
             version_matches = source_version_matches(wanted.get('source')) if wanted.get('source') else None
             source_consumer = wanted['source_consumer']
             plugin_source = wanted.get('source') not in (None, 'planner_server', 'controller_server')
@@ -239,13 +244,26 @@ def assess_plugin_parameters(report, provenance=None):
             elif source_consumer == 'SOURCE_CONSUMER_IDENTIFIED' and plugin_source and associations[node]['status'] != 'PASS':
                 source_consumer = ('BINARY_IDENTITY_MISMATCH' if associations[node]['status'] == 'FAIL'
                                    else 'UNKNOWN_BINARY_ASSOCIATION')
+            package_names = (('nav2_planner', 'nav2_smac_planner') if node == '/planner_server'
+                             else ('nav2_controller', 'nav2_mppi_controller'))
+            unsupported_evidence = (known_absent and wanted['source_consumer'] == 'NO_READ_SITE_IDENTIFIED'
+                and all(packages.get(name, {}).get('version') == NAV2_VERSION for name in package_names)
+                and plugin_identity_matches and associations[node]['status'] == 'PASS')
+            availability = ('UNSUPPORTED_VERSION' if unsupported_evidence else
+                'UNDECLARED' if known_absent else declaration.get('status', 'DECLARED' if declared else 'UNKNOWN'))
             entries.append({'node': node, 'name': key, **wanted,
                 'source_consumer': source_consumer,
                 'SOURCE_AUDIT_VERSION_MATCHED': 'YES' if version_matches else 'UNKNOWN' if version_matches is False else 'NOT_APPLICABLE',
                 'PLUGIN_IDENTITY_MATCHED': plugin_identity_matches,
                 'INSTALLED_MAPPED_ASSOCIATION': associations[node]['status'] if plugin_source else 'NOT_APPLICABLE',
-                'DECLARED': 'YES' if declared else 'NO' if description is not None else 'UNKNOWN',
-                'EFFECTIVE': 'MATCH' if matches else 'DIFFERS' if sample is not None else 'UNKNOWN',
+                'DECLARED': 'NO' if known_absent else 'YES' if declared else 'NOT_SET' if description is not None else 'UNKNOWN',
+                'EFFECTIVE': 'NOT_APPLICABLE_UNDECLARED' if known_absent else
+                    'MATCH' if matches else 'DIFFERS' if sample is not None else 'UNKNOWN',
+                'AVAILABILITY': availability,
+                'availability_evidence': declaration,
+                'unsupported_version_scope': ('No read site in the inspected 1.2.10 path plus observed undeclared name; '
+                    'not a claim about other releases or source/binary equivalence.') if unsupported_evidence else None,
+                'tuning_eligible': False,
                 'observed': sample, 'descriptor': description,
                 'ACTUALLY_USED': 'NOT_VERIFIED',
                 'usage_limit': 'Get/DescribeParameters do not expose internal algorithm execution.'})
@@ -257,6 +275,12 @@ def assess_plugin_parameters(report, provenance=None):
                        'status': 'BLOCKED_REVIEW' if unsupported else 'PASS', 'names': unsupported,
                        'source_version': NAV2_VERSION,
                        'reason': 'Reconcile before selecting tuning knobs; canonical YAML is preserved.'})
+        checks.append({'name': 'optional_parameter_declarations:' + node,
+                       'status': 'UNKNOWN' if optional_unknown else 'PASS',
+                       'unresolved_names': optional_unknown,
+                       'known_undeclared_names': sorted(key for key, item in actual.get('declarations', {}).items()
+                                                       if item.get('status') == 'UNDECLARED'),
+                       'scope': 'Resolved observation outcomes, not optional parameters accepted as useful tuning knobs.'})
     identities_ok = all(packages.get(name, {}).get('version') == NAV2_VERSION
                         and packages.get(name, {}).get('libraries')
                         and all(library.get('sha256') for library in packages[name]['libraries'])

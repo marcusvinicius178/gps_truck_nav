@@ -24,6 +24,51 @@ LIBRARIES = {
 MAX_BINARY_BYTES = 256 * 1024 * 1024
 
 
+def _executable_role(basename):
+    if basename in EXECUTABLES:
+        return basename
+    # gazebo11_11.10.2 gz_install_executable sets VERSION=GAZEBO_VERSION_FULL.
+    # CMake installs a versioned executable and unversioned symlink on Linux.
+    # This is discovery only; inode/hash and launch-PID checks remain mandatory.
+    if re.fullmatch(r'gzserver-11\.[0-9]+\.[0-9]+', basename):
+        return 'gzserver'
+    return None
+
+
+def _process_identity(directory):
+    """Read Linux stat fields 4/22; comm may contain spaces or parentheses."""
+    text = (directory / 'stat').read_text()
+    prefix, closing, tail = text.rpartition(')')
+    pid, opening, _ = prefix.partition(' (')
+    fields = tail.split()
+    if not closing or not opening or int(pid) != int(directory.name) or len(fields) < 20:
+        raise ValueError('Malformed /proc stat identity')
+    parent, started = int(fields[1]), int(fields[19])
+    if parent < 0 or started < 0:
+        raise ValueError('Invalid process parent/start time')
+    return {'parent_pid': parent, 'start_time_ticks': started}
+
+
+def _launch_evidence(path):
+    result = {'status': 'NOT_PROVIDED', 'pids': {},
+        'scope': 'PID correlation only; the launch log does not record kernel process start time.'}
+    if path is None:
+        return result
+    result['path'] = str(path)
+    try:
+        data = Path(path).read_bytes()
+        result['sha256'] = hashlib.sha256(data).hexdigest()
+        pattern = (r'^\[INFO\] \[(gzserver|component_container_isolated|navsat_transform_node|ekf_node)'
+                   r'-[0-9]+\]: process started with pid \[([1-9][0-9]*)\]\s*$')
+        for role, pid in re.findall(pattern, data.decode('utf-8'), re.MULTILINE):
+            result['pids'].setdefault(role, []).append(int(pid))
+        result['pids'] = {role: sorted(set(pids)) for role, pids in result['pids'].items()}
+        result['status'] = 'PARSED' if result['pids'] else 'NO_RECOGNIZED_PROCESS_LINES'
+    except (OSError, UnicodeError) as error:
+        result.update(status='READ_ERROR', error=_error(error))
+    return result
+
+
 def _error(error):
     return {'type': type(error).__name__, 'errno': getattr(error, 'errno', None),
             'message': str(error)}
@@ -129,7 +174,7 @@ def _mapped_libraries(text, executable):
     return result, errors
 
 
-def inspect_runtime_binaries(proc_root=Path('/proc')):
+def inspect_runtime_binaries(proc_root=Path('/proc'), *, launch_log=None):
     """Return identities observed in a bounded set of relevant Linux processes.
 
     MAPPED_IDENTIFIED means a stable file hash matched the device/inode recorded
@@ -137,13 +182,15 @@ def inspect_runtime_binaries(proc_root=Path('/proc')):
     librl_lib can be linked statically; executable identity is separate evidence.
     """
     started = time.monotonic()
-    result = {'schema_version': 1, 'observed_at_utc': datetime.now(timezone.utc).isoformat(),
+    result = {'schema_version': 2, 'observed_at_utc': datetime.now(timezone.utc).isoformat(),
         'scope': 'SELECTED_EXECUTABLE_AND_MAPPED_FILE_IDENTITIES_ONLY',
         'collection_status': 'UNAVAILABLE', 'processes': [], 'targets': {}, 'errors': [],
+        'executable_inventory': [], 'launch_evidence': _launch_evidence(launch_log),
         'upstream_equivalence_verified': False, 'plugin_consumption_verified': False,
         'limits': ['A matching hash identifies a mapped file, not execution of a particular method.',
                    'The snapshot can race process lifecycle; exited, changed or inaccessible processes remain explicit.',
-                   'Missing librl_lib may mean static linkage; inspect navsat/ekf executable identities separately.']}
+                   'Missing librl_lib may mean static linkage; inspect navsat/ekf executable identities separately.',
+                   'Kernel start time detects PID reuse within this snapshot; a prior launch-log PID match alone cannot exclude earlier reuse.']}
     proc_root = Path(proc_root)
     try:
         directories = sorted((path for path in proc_root.iterdir() if path.name.isdecimal()),
@@ -153,21 +200,37 @@ def inspect_runtime_binaries(proc_root=Path('/proc')):
         directories = []
     for directory in directories:
         executable_link = directory / 'exe'
+        inventory = {'pid': int(directory.name)}
+        result['executable_inventory'].append(inventory)
         try:
             executable_path = os.readlink(executable_link)
         except OSError as error:
             # PID may exit during enumeration; never assume an unreadable PID is irrelevant.
             result['errors'].append({'pid': int(directory.name), 'operation': 'read_executable',
                                      'error': _error(error)})
+            inventory.update(status='READ_ERROR', error=_error(error))
             continue
         deleted = executable_path.endswith(' (deleted)')
         path = executable_path.removesuffix(' (deleted)') if deleted else executable_path
         executable = Path(path).name
-        if executable not in EXECUTABLES:
+        role = _executable_role(executable)
+        inventory.update(status='READ', executable_symlink=executable_path,
+                         executable_name=executable, executable_role=role)
+        if role is None:
             continue
         process = {'pid': int(directory.name), 'executable_name': executable,
+                   'executable_role': role,
                    'process_status': 'OBSERVED', 'maps_status': 'UNAVAILABLE', 'libraries': [], 'errors': []}
         result['processes'].append(process)
+        expected_pids = result['launch_evidence']['pids'].get(role, [])
+        process['launch_correlation'] = ('NOT_REQUESTED' if launch_log is None else
+            'PID_MATCH_ONLY' if process['pid'] in expected_pids else
+            'PID_NOT_IN_LAUNCH' if expected_pids else 'EXPECTED_PID_UNAVAILABLE')
+        try:
+            process['kernel_identity_before'] = _process_identity(directory)
+        except (OSError, UnicodeError, ValueError) as error:
+            process['process_status'] = 'IDENTITY_UNVERIFIED'
+            process['errors'].append({'operation': 'read_process_identity', 'error': _error(error)})
         if deleted:
             process['executable'] = {'path': path, 'status': 'DELETED_EXECUTABLE', 'sha256': None}
         else:
@@ -179,7 +242,7 @@ def inspect_runtime_binaries(proc_root=Path('/proc')):
                 process['executable'] = {'path': path, 'status': 'EXECUTABLE_STAT_ERROR',
                                          'sha256': None, 'error': _error(error)}
         try:
-            process['libraries'], errors = _mapped_libraries((directory / 'maps').read_text(), executable)
+            process['libraries'], errors = _mapped_libraries((directory / 'maps').read_text(), role)
             process['errors'].extend(errors)
             process['maps_status'] = 'READ' if not errors else 'PARTIAL'
         except (OSError, UnicodeError) as error:
@@ -188,24 +251,41 @@ def inspect_runtime_binaries(proc_root=Path('/proc')):
         try:
             if os.readlink(executable_link) != executable_path:
                 process['process_status'] = 'EXECUTABLE_CHANGED'
+            process['kernel_identity_after'] = _process_identity(directory)
+            if (process.get('kernel_identity_before') is not None
+                    and process['kernel_identity_after']['start_time_ticks'] !=
+                        process['kernel_identity_before']['start_time_ticks']):
+                process['process_status'] = 'PID_REUSED_DURING_SNAPSHOT'
+            if not deleted and process['executable']['status'] == 'IDENTIFIED':
+                after = _stat_identity(executable_link.stat())
+                if after != process['executable']['file_stat']:
+                    process['process_status'] = 'EXECUTABLE_CHANGED'
         except OSError as error:
             process['process_status'] = 'EXITED_OR_INACCESSIBLE'
             process['errors'].append({'operation': 'recheck_executable', 'error': _error(error)})
+        except (UnicodeError, ValueError) as error:
+            process['process_status'] = 'IDENTITY_UNVERIFIED'
+            process['errors'].append({'operation': 'recheck_process_identity', 'error': _error(error)})
 
-    discovered = {process['executable_name'] for process in result['processes']}
+    discovered = {process['executable_role'] for process in result['processes']}
     result['required_processes'] = {name: {'status': 'OBSERVED' if name in discovered else 'NOT_OBSERVED',
-        'pids': [process['pid'] for process in result['processes'] if process['executable_name'] == name]}
+        'pids': [process['pid'] for process in result['processes'] if process['executable_role'] == name],
+        'launch_pids': result['launch_evidence']['pids'].get(name, [])}
         for name in EXECUTABLES}
-    incomplete = bool(result['errors'])
+    incomplete = bool(result['errors']) or (launch_log is not None and result['launch_evidence']['status'] != 'PARSED')
     for process in result['processes']:
         incomplete |= (process['process_status'] != 'OBSERVED' or process['maps_status'] != 'READ'
                        or process['executable']['status'] != 'IDENTIFIED'
+                       or process['launch_correlation'] not in ('NOT_REQUESTED', 'PID_MATCH_ONLY')
                        or any(item['status'] != 'IDENTIFIED' for item in process['libraries']))
     for role in LIBRARIES:
         records = [{**item, 'pid': process['pid'], 'executable_name': process['executable_name'],
+                    'executable_role': process['executable_role'],
+                    'launch_correlation': process['launch_correlation'],
                     'process_status': process['process_status']}
                    for process in result['processes'] for item in process['libraries'] if item['target'] == role]
         identified = records and all(item['status'] == 'IDENTIFIED' and item['process_status'] == 'OBSERVED'
+                                     and item['launch_correlation'] in ('NOT_REQUESTED', 'PID_MATCH_ONLY')
                                      for item in records)
         status = ('MAPPED_IDENTIFIED' if identified else 'MAPPED_UNVERIFIED' if records else
                   'DISCOVERY_INCOMPLETE' if incomplete else 'NOT_OBSERVED')

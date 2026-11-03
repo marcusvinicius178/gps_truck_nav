@@ -39,18 +39,20 @@ class PluginParameterProbe:
         self.timeout, self.max_attempts = timeout, max_attempts
         self.closed = False
         self.jobs = []
-        self.report = {'schema_version': 1, 'contract': build_contract(canonical), 'nodes': {},
+        self.report = {'schema_version': 2, 'contract': build_contract(canonical), 'nodes': {},
             'collection_status': 'PENDING', 'jobs': [],
             'policy': {'batch_size': batch_size, 'timeout_wall_seconds': timeout,
                        'maximum_attempts': max_attempts, 'maximum_inflight': 4,
                        'list_parameters_required_for_explicit_readback': False,
                        'optional_parameters_queried_as_singletons': True,
                        'required_batches_precede_optional_singletons': True,
+                       'list_precedes_optional_singletons': True,
+                       'undeclared_requires': 'Consistent unfiltered recursive List plus both singleton Get/Describe empty or NOT_SET; required names cross-check the list.',
                        'deadline_basis': 'MONOTONIC_FIRST_OBSERVED_COMPLETION',
                        'late_response_payload_used_as_effective_value': False},
             'mutation_performed': False}
         for target, parameters in self.report['contract']['nodes'].items():
-            self.report['nodes'][target] = {'values': {}, 'descriptors': {}, 'listed_names': [],
+            self.report['nodes'][target] = {'values': {}, 'descriptors': {}, 'declarations': {}, 'listed_names': [],
                                            'listed_prefixes': []}
             keys = sorted(key for key, value in parameters.items() if value['required'])
             optional = sorted(key for key, value in parameters.items() if not value['required'])
@@ -74,6 +76,8 @@ class PluginParameterProbe:
                               'required_for_collection': method != 'list',
                               'contract_required': bool(names and all(parameters[key]['required'] for key in names)),
                               'service_ready_observed': False, 'service_check_count': 0}
+                    if method == 'list':
+                        record['request'] = {'prefixes': [], 'depth': 0, 'depth_meaning': 'DEPTH_RECURSIVE'}
                     self.report['jobs'].append(record)
                     self.jobs.append({'client': client, 'request': request, 'record': record,
                                       'future': None, 'sent': None})
@@ -99,10 +103,9 @@ class PluginParameterProbe:
                 for value in response.descriptors]}
         return {'listed_names': list(response.result.names), 'listed_prefixes': list(response.result.prefixes)}
 
-    def _decode(self, record, response):
+    def _decode(self, record, payload):
         target, method, names = record['node'], record['method'], record['names']
         destination = self.report['nodes'][target]
-        payload = self._response_payload(method, response)
         if method == 'get':
             if len(payload['values']) != len(names):
                 raise ValueError('GetParameters response count differs from explicit request')
@@ -117,7 +120,71 @@ class PluginParameterProbe:
                 values[name] = value
             destination['descriptors'].update(values)
         else:
+            for field in ('listed_names', 'listed_prefixes'):
+                items = payload[field]
+                if any(not isinstance(value, str) or not value for value in items) or len(items) != len(set(items)):
+                    raise ValueError('ListParameters returned invalid or duplicate ' + field)
             destination.update(payload)
+
+    def _reconcile_optional_absence(self):
+        """Classify a snapshot, never infer undeclared from an empty RPC alone.
+
+        Empty optional replies wait for their companion method and the bounded
+        list query. Normal Get/Describe evidence remains independent of List.
+        """
+        for target, expected in self.report['contract']['nodes'].items():
+            destination = self.report['nodes'][target]
+            jobs = [job['record'] for job in self.jobs if job['record']['node'] == target]
+            listing = next(job for job in jobs if job['method'] == 'list')
+            listed = set(destination['listed_names'])
+            required = {key for key, value in expected.items() if value['required']}
+            # A suspiciously empty/truncated List must not establish absence.
+            list_consistent = (listing['status'] == 'OK' and required <= listed
+                and all(destination['descriptors'].get(key, {}).get('type', 0) != 0
+                        for key in required))
+            destination['list_cross_check'] = {
+                'status': 'CONSISTENT' if list_consistent else 'NOT_ESTABLISHED',
+                'required_names_missing_from_list': sorted(required - listed),
+                'scope': 'Snapshot of declarations in this observation window, not an atomic read across services.'}
+            for name, wanted in expected.items():
+                if wanted['required']:
+                    continue
+                pair = [job for job in jobs if job['names'] == [name]]
+                if len(pair) != 2:
+                    continue
+                empty = [job for job in pair if job['status'] == 'EMPTY_RESPONSE']
+                def absent_reply(job):
+                    if job['status'] == 'EMPTY_RESPONSE':
+                        return True
+                    category = 'values' if job['method'] == 'get' else 'descriptors'
+                    return job['status'] == 'OK' and destination[category].get(name, {}).get('type') == 0
+                if list_consistent and name not in listed and all(absent_reply(job) for job in pair):
+                    destination['declarations'][name] = {
+                        'status': 'UNDECLARED', 'evidence': 'LIST_ABSENT_AND_TWO_SINGLETON_RESPONSES',
+                        'list_service': listing['service'],
+                        'list_completed_wall_offset': listing['attempts'][-1]['completed_wall_offset'],
+                        'list_required_names_cross_check': 'CONSISTENT',
+                        'responses': [{'method': job['method'], 'attempt': len(job['attempts']),
+                            'status': job['attempts'][-1]['status'],
+                            'completed_wall_offset': job['attempts'][-1]['completed_wall_offset']}
+                            for job in pair],
+                        'scope': 'Known absent in observed configuration; does not establish support or tuning eligibility.'}
+                    for job in pair:
+                        job['status'] = 'UNDECLARED'
+                    continue
+                # Wait only for bounded requests that can settle the absence.
+                waiting = listing['status'] == 'PENDING' or any(job['status'] == 'PENDING' for job in pair)
+                if empty and not waiting:
+                    for job in empty:
+                        job['attempts'][-1].update(status='ERROR',
+                            error='Empty response could not be corroborated as undeclared by List and both singleton methods.')
+                        job['status'] = 'PENDING' if len(job['attempts']) < self.max_attempts else 'ERROR'
+                if list_consistent and name not in listed and any(
+                        destination[category].get(name, {}).get('type', 0) != 0
+                        for category in ('values', 'descriptors')):
+                    destination['declarations'][name] = {
+                        'status': 'INCONSISTENT_OBSERVATIONS',
+                        'reason': 'List omits a name for which Get or Describe returned a declared type; possible concurrent change.'}
 
     def poll(self, *, start_new=True):
         if self.closed:
@@ -141,25 +208,33 @@ class PluginParameterProbe:
                 self._forget(job)
             elif future.done():
                 try:
-                    self._decode(record, future.result())
-                    attempt.update(status='OK', completed_wall_offset=now - self.started,
+                    payload = self._response_payload(record['method'], future.result())
+                    attempt['response_payload'] = payload
+                    key = {'get': 'values', 'describe': 'descriptors'}.get(record['method'])
+                    optional_empty = (not record['contract_required'] and record['names']
+                        and len(record['names']) == 1 and key is not None and payload[key] == [])
+                    if not optional_empty:
+                        self._decode(record, payload)
+                    record['status'] = 'EMPTY_RESPONSE' if optional_empty else 'OK'
+                    attempt.update(status=record['status'], completed_wall_offset=now - self.started,
                                    response_latency_wall_seconds=now - job['sent'])
-                    record['status'] = 'OK'
                 except Exception as error:
                     attempt.update(status='ERROR', error=f'{type(error).__name__}: {error}',
                                    completed_wall_offset=now - self.started)
                 self._forget(job)
-            if job['future'] is None and record['status'] != 'OK' and len(record['attempts']) >= self.max_attempts:
+            if job['future'] is None and record['status'] == 'PENDING' and len(record['attempts']) >= self.max_attempts:
                 record['status'] = record['attempts'][-1]['status']
 
+        self._reconcile_optional_absence()
         if not start_new:
             return
         inflight = sum(job['future'] is not None for job in self.jobs)
         occupied = {(job['record']['node'], job['record']['method'])
                     for job in self.jobs if job['future'] is not None}
-        # Explicit queries precede ListParameters; listing never gates Get/Describe.
-        ordered = sorted(self.jobs, key=lambda job: (job['record']['method'] == 'list',
-                                                    not job['record']['contract_required']))
+        # Required readback first, then List, then optional singletons. A failed
+        # List still cannot invalidate complete explicit parameter readbacks.
+        ordered = sorted(self.jobs, key=lambda job: 0 if job['record']['contract_required']
+                         else 1 if job['record']['method'] == 'list' else 2)
         for job in ordered:
             record = job['record']
             channel = (record['node'], record['method'])
@@ -201,6 +276,8 @@ class PluginParameterProbe:
         now = self.clock()
         for job in self.jobs:
             record = job['record']
+            if record['status'] == 'EMPTY_RESPONSE':
+                record['status'] = 'UNRESOLVED_EMPTY_RESPONSE'
             if record['status'] == 'PENDING':
                 record['status'] = ('WINDOW_CLOSED' if record['attempts'] else
                     'SERVICE_UNAVAILABLE' if record['service_check_count'] and not record['service_ready_observed'] else
@@ -210,7 +287,16 @@ class PluginParameterProbe:
                 self._forget(job)
         self.closed = True
         required = [job for job in self.report['jobs'] if job['required_for_collection']]
-        self.report['collection_status'] = 'COMPLETE' if all(job['status'] == 'OK' for job in required) else 'PARTIAL'
+        conflicts = any(item.get('status') == 'INCONSISTENT_OBSERVATIONS'
+            for node in self.report['nodes'].values() for item in node['declarations'].values())
+        resolved = all(job['status'] == 'OK' or
+                       (not job['contract_required'] and job['status'] == 'UNDECLARED') for job in required)
+        self.report['collection_status'] = 'COMPLETE' if resolved and not conflicts else 'PARTIAL'
+        self.report['readback_collection_status'] = ('COMPLETE' if all(
+            job['attempts'] and job['attempts'][-1]['status'] == 'OK' for job in required) else 'PARTIAL')
+        self.report['known_undeclared_parameters'] = [
+            {'node': name, 'name': key} for name, node in self.report['nodes'].items()
+            for key, value in node['declarations'].items() if value['status'] == 'UNDECLARED']
         mandatory = [job for job in self.report['jobs'] if job['contract_required']]
         self.report['required_collection_status'] = 'COMPLETE' if all(job['status'] == 'OK' for job in mandatory) else 'PARTIAL'
         self.report['observed_duration_wall_seconds'] = now - self.started

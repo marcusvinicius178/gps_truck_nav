@@ -1,0 +1,42 @@
+$ /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/audit_repository.py
+CHECK XML syntax: 40
+CHECK YAML (unique keys): 18
+CHECK Python/launch syntax: 84
+CHECK unique canonical packages: 3
+CHECK installed Python entry points: 8
+CHECK world/waypoint site consistency (not alignment or runtime): 1
+CHECK required mesh references: 9
+PASS: structural audit
+
+exit_code=0
+PASS: all auto_tuning Python tools compiled without execution
+$ bash -n /workspace/scratch/2da6652f4afb/gps_truck_nav_review3/tools/auto_tuning/validate_image.sh
+
+
+exit_code=0
+$ bash -n /workspace/scratch/2da6652f4afb/gps_truck_nav_review3/tools/auto_tuning/collect_runtime_evidence.sh
+
+
+exit_code=0
+PASS syntax only: local_setup_runbook.md: 17 Bash, 6 embedded Python; no host commands executed
+PASS syntax only: visual_observation_runbook.md: 6 Bash, 1 embedded Python; no host commands executed
+PASS syntax only: actuation_validation_protocol.md: 1 Bash, 0 embedded Python; no host commands executed
+UNCHANGED src/gps_truck_nav/truck_bringup/params/truck_nav2_params.yaml 722169c640ac8a37c10ca1097ff212366bac7ae58ac2f596608bfc7a9454eef7
+UNCHANGED src/gps_truck_nav/truck_bringup/params/dual_ekf_navsat_params.yaml e73041ad33abff6f61b7d834910922d6af9936c234453bdbeedfac8c77a8f2d7
+UNCHANGED src/gps_truck_nav/truck_bringup/models/arocs_truck/model.sdf b8f8fc8b20a129694eed58bfd439c770e112a70fcf0e6da37bd9595f7e7ca8f2
+UNCHANGED src/gps_truck_nav/truck_bringup/urdf/arocs_truck.urdf 863a35defbc79b75debb4e2650a874730c1bbd6dfd64c4b2a10f763778b7e3a1
+PASS: 14 protected launch/BT/variant/localization/Docker files byte-identical to a21403f
+PASS: analysis repository clean; no historic experiments edited
+$ /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/auto_tuning/prepare_navigation_profiles.py verify --source src/gps_truck_nav/truck_bringup/params/truck_nav2_params.yaml --profiles-dir config/auto_tuning/navigation_profiles
+{"status": "PREPARED_DIAGNOSTIC_ONLY", "readiness": "BLOCKED_ACTUATION_REVIEW", "profiles": ["20kmh", "25kmh"], "motion_authorized": false, "gate0": "NOT_YET_VERIFIED", "gate1": "NOT_YET_VERIFIED"}
+
+exit_code=0
+$ /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/auto_tuning/validate_model_variant.py --repo /workspace/scratch/2da6652f4afb/gps_truck_nav_review3
+{"schema_version": 1, "status": "MODEL_VARIANT_VALIDATED", "scope": "STATIC_ASSET_AND_METADATA_CONTRACT_ONLY", "runtime_verified": false, "mission_ready": false, "gate0": "NOT_YET_VERIFIED", "gate1": "NOT_YET_VERIFIED", "observations": {"profile_id": "arocs_tf_sensor_frames_v1", "manifest_sha256": "6982f4314eece195de3cc318be07a2293ea249f2eace79a5ad96749eb12a53ba", "canonical_sha256": {"models/arocs_truck/model.sdf": "b8f8fc8b20a129694eed58bfd439c770e112a70fcf0e6da37bd9595f7e7ca8f2", "models/arocs_truck/model.config": "2b08eaa807415bd1e813535f4a99a76db8253a2f1219a773dc7a315fdfb3a51d", "worlds/ctvi.world": "f33f9c7ad7be1ec785edbff5e6229a22515ac9fdd84c019fd5c8c8661a86e61f", "urdf/arocs_truck.urdf": "863a35defbc79b75debb4e2650a874730c1bbd6dfd64c4b2a10f763778b7e3a1"}, "variant_sha256": {"models/arocs_truck_tf_sensors/model.sdf": "5a389dd2b5e9703c0f44c657d8b06662865209a9d40870ce06f76b063f1c7da4", "models/arocs_truck_tf_sensors/model.config": "2b08eaa807415bd1e813535f4a99a76db8253a2f1219a773dc7a315fdfb3a51d", "worlds/ctvi_tf_sensors.world": "9094bd4df7d7f7472ebc0ba3a2dd8910af4a9bcf3e5fa4a5bca225f7df089dab"}, "model_name": "arocs_truck", "sensor_lever_arms": {"gps_link": {"sensor": "arocs_gps", "parent": "base_footprint", "translation_m": [3.8205, 0.0, 3.062], "rpy_rad": [0.0, -0.0, 0.0]}, "imu_link": {"sensor": "imu_sensor", "parent": "base_footprint", "translation_m": [3.7205, 0.0, 2.595], "rpy_rad": [0.0, -0.0, 0.0]}}, "expected_wheel_edges": [{"joint_name": "front_right_steer_joint", "parent": "first_shaft_horizontal_shaft_link", "child": "front_right_steering_link", "expected_publisher": "robot_state_publisher"}, {"joint_name": "front_left_steer_joint", "parent": "first_shaft_horizontal_shaft_link", "child": "front_left_steering_link", "expected_publisher": "robot_state_publisher"}, {"joint_name": "first_wheel_left_joint", "parent": "front_left_steering_link", "child": "first_wheel_left_link", "expected_publisher": "robot_state_publisher"}, {"joint_name": "first_wheel_right_joint", "parent": "front_right_steering_link", "child": "first_wheel_right_link", "expected_publisher": "robot_state_publisher"}, {"joint_name": "fourth_wheel_left_joint", "parent": "fourth_shaft_horizontal_shaft_link", "child": "fourth_wheel_left_link", "expected_publisher": "robot_state_publisher"}, {"joint_name": "fourth_wheel_right_joint", "parent": "fourth_shaft_horizontal_shaft_link", "child": "fourth_wheel_right_link", "expected_publisher": "robot_state_publisher"}], "joint_names": ["front_right_steer_joint", "front_left_steer_joint", "first_wheel_left_joint", "first_wheel_right_joint", "fourth_wheel_left_joint", "fourth_wheel_right_joint"], "canonical_mesh_references_checked": 9}}
+
+exit_code=0
+$ git diff --check
+
+
+exit_code=0
+LIMIT: no Docker/ROS/Gazebo/GUI runtime in Work. HTTP/XWD tests use artificial local fixtures; C++ tests compile dependency-free core only.

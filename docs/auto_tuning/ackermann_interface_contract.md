@@ -1,6 +1,8 @@
-# Interface Ackermann — contrato prospectivo, revisão 2
+# Interface Ackermann — contrato prospectivo, revisões 2–3
 
 **Movimento bloqueado. Gate 0 e Gate 1: NOT_YET_VERIFIED.** Este documento deriva a interface e explicita o que falta validar. O auditor associado só lê XML e calcula geometria/equações; não contém ROS, publisher, subscriber, goal ou comando de atuação. Nenhum conversor foi conectado ao bringup e nenhum parâmetro físico foi substituído.
+
+**Atualização de 03/11/2026, terceira revisão:** o probe a21403f confirmou TF/headers e leitura efetiva de MPPI `vx_max=25.0`, `wz_max=0.4`, modelo Ackermann; o smoother limita ±8,33 m/s e ±0,72 rad/s. O grafo mostra quatro publishers do behavior_server que contornam o smoother. Não reinterpretar 25,0 como 2,5. Os conflitos geométricos abaixo permanecem estáticos e pendentes. Foi acrescentado `actuation_contract.py`, núcleo exclusivamente offline com regressões de conversão/limites/falhas; ele não é ligado à planta nem implementa um watchdog operacional. O protocolo completo e as condições futuras de autorização estão em `actuation_validation_protocol.md`.
 
 ## 1. Evidência instalada e limite de identidade
 

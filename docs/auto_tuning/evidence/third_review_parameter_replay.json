@@ -1,0 +1,61 @@
+{
+  "scope": "Offline RPC replay from full a21403f values/descriptors/lists; no ROS runtime",
+  "collection_status": "COMPLETE",
+  "readback_collection_status": "PARTIAL",
+  "required_collection_status": "COMPLETE",
+  "known_undeclared": 21,
+  "job_statuses": {
+    "OK": 20,
+    "UNDECLARED": 42
+  },
+  "attempts": 62,
+  "recorded_value_identity_preserved": true,
+  "checks": [
+    {
+      "name": "plugin_binary_association:/planner_server",
+      "status": "PASS"
+    },
+    {
+      "name": "plugin_binary_association:/controller_server",
+      "status": "PASS"
+    },
+    {
+      "name": "effective_plugin_parameters:/planner_server",
+      "status": "PASS"
+    },
+    {
+      "name": "unconsumed_yaml_parameters:/planner_server",
+      "status": "BLOCKED_REVIEW"
+    },
+    {
+      "name": "optional_parameter_declarations:/planner_server",
+      "status": "PASS"
+    },
+    {
+      "name": "effective_plugin_parameters:/controller_server",
+      "status": "PASS"
+    },
+    {
+      "name": "unconsumed_yaml_parameters:/controller_server",
+      "status": "BLOCKED_REVIEW"
+    },
+    {
+      "name": "optional_parameter_declarations:/controller_server",
+      "status": "PASS"
+    },
+    {
+      "name": "plugin_version_and_binary_identity",
+      "status": "PASS"
+    },
+    {
+      "name": "plugin_parameters_actually_used",
+      "status": "BLOCKED_REVIEW"
+    }
+  ],
+  "availability": {
+    "DECLARED": 107,
+    "UNSUPPORTED_VERSION": 15,
+    "UNDECLARED": 6
+  },
+  "mission_ready": false
+}

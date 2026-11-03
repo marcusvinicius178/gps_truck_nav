@@ -10,6 +10,7 @@ fi
 export PYTHONDONTWRITEBYTECODE=1
 exec python3 - <<'PY'
 import datetime
+from ctypes.util import find_library
 import importlib
 import json
 import os
@@ -168,10 +169,27 @@ with tempfile.TemporaryDirectory(prefix='nav2-image-smoke-', dir='/tmp') as temp
                 ['python3', '/opt/auto_tuning/tools/validate_model_variant.py',
                  '--installed-share', str(prefixes['truck_bringup'] / 'share/truck_bringup'),
                  '--config', '/opt/auto_tuning/config'], timeout=30)
+        command('prospective_navigation_profiles',
+                ['python3', '/opt/auto_tuning/tools/prepare_navigation_profiles.py', 'verify',
+                 '--source', str(prefixes['truck_bringup'] / 'share/truck_bringup/params/truck_nav2_params.yaml'),
+                 '--profiles-dir', '/opt/auto_tuning/config/navigation_profiles'], timeout=30)
     else:
         add('prospective_model_contract', False, reason='truck_bringup prefix unavailable')
+        add('prospective_navigation_profiles', False, reason='truck_bringup prefix unavailable')
     add('prospective_model_search_path', '/opt/auto_tuning/config/models' in
         os.environ.get('GAZEBO_MODEL_PATH', '').split(os.pathsep))
+    for binary in ('Xvfb', 'gzclient'):
+        add('visual_observer_binary:' + binary, shutil.which(binary) is not None,
+            path=shutil.which(binary), scope='Executable availability only; GUI has not been started.')
+    try:
+        from ament_index_python.packages import get_package_prefix
+        rviz_binary = Path(get_package_prefix('rviz2')) / 'lib/rviz2/rviz2'
+        add('visual_observer_rviz', rviz_binary.is_file() and os.access(rviz_binary, os.X_OK),
+            path=str(rviz_binary), scope='ros2 run executable availability only.')
+    except Exception as error:
+        add('visual_observer_rviz', False, error=str(error))
+    add('visual_observer_x11_library', find_library('X11') is not None,
+        scope='Library discoverability only; no X display connection.')
     observer = Path('/opt/auto_tuning/bin/tf_authority_probe')
     add('tf_authority_probe_executable', observer.is_file() and os.access(observer, os.X_OK),
         path=str(observer))
