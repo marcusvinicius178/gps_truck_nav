@@ -200,6 +200,13 @@ class PresentationContractTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     session.observation_world(path)
 
+    def test_candidate_observation_camera_preserves_selected_plant_world(self):
+        source = ROOT / 'config/auto_tuning/plant_candidate/worlds/ctvi_plant_candidate.world'
+        text, addition = session.observation_world(source, 'model://arocs_truck_candidate')
+        self.assertEqual(text.replace(addition, '', 1), source.read_text())
+        with self.assertRaises(ValueError):
+            session.observation_world(source)  # A candidate cannot masquerade as the prior TF/sensor variant.
+
     def test_rviz_has_displays_and_no_action_tools_or_panels(self):
         config = yaml.safe_load((ROOT / 'config/auto_tuning/observation.rviz').read_text())
         self.assertEqual(config['Visualization Manager']['Tools'], [])
@@ -273,6 +280,25 @@ class VisualDockerTests(unittest.TestCase):
     def test_different_source_or_image_cannot_open_visual_session(self):
         record = json.loads((self.probe / 'status.json').read_text())
         record['image_id'] = 'sha256:' + 'd' * 64
+        (self.probe / 'status.json').write_text(json.dumps(record))
+        with self.patches(), self.assertRaises(visual.phase.PhaseError):
+            visual.start(self.repo, self.build, self.probe, self.output, 900)
+        self.assertFalse(any(name == 'visual_create' for name, _ in self.commands))
+
+    def test_visual_reuses_candidate_selection_from_probe(self):
+        record = json.loads((self.probe / 'status.json').read_text())
+        record['navigation_profile'] = 'candidate25kmh'
+        (self.probe / 'status.json').write_text(json.dumps(record))
+        with self.patches(), mock.patch.object(visual, 'read_frame', return_value=b'png'):
+            result = visual.start(self.repo, self.build, self.probe, self.output, 900)
+        command = next(cmd for name, cmd in self.commands if name == 'visual_create')
+        self.assertIn('NAV2_PHASE_A_PROFILE=candidate25kmh', command)
+        self.assertNotIn('NAV2_PHASE_A_PROFILE=canonical', command)
+        self.assertEqual(result['navigation_profile'], 'candidate25kmh')
+
+    def test_unknown_probe_profile_cannot_silently_open_canonical_visual(self):
+        record = json.loads((self.probe / 'status.json').read_text())
+        record['navigation_profile'] = 'other'
         (self.probe / 'status.json').write_text(json.dumps(record))
         with self.patches(), self.assertRaises(visual.phase.PhaseError):
             visual.start(self.repo, self.build, self.probe, self.output, 900)

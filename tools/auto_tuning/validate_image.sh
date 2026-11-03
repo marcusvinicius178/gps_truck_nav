@@ -160,7 +160,7 @@ with tempfile.TemporaryDirectory(prefix='nav2-image-smoke-', dir='/tmp') as temp
                                         'gps_waypoint_follower.launch.py', '--show-args'], timeout=30)
     arguments = launch['stdout'] + launch['stderr']
     for name in ('use_gzclient', 'use_rviz', 'use_mapviz', 'use_xcb', 'use_ackermann_bt',
-                 'publish_legacy_cloud_tf', 'localization_params_file'):
+                 'publish_legacy_cloud_tf', 'localization_params_file', 'robot_description_file'):
         add('launch_argument_' + name, launch['passed'] and name in arguments)
     command('launch_parameter_transport',
             ['python3', '/opt/auto_tuning/tools/verify_parameter_transport.py'], timeout=30)
@@ -173,10 +173,22 @@ with tempfile.TemporaryDirectory(prefix='nav2-image-smoke-', dir='/tmp') as temp
                 ['python3', '/opt/auto_tuning/tools/prepare_navigation_profiles.py', 'verify',
                  '--source', str(prefixes['truck_bringup'] / 'share/truck_bringup/params/truck_nav2_params.yaml'),
                  '--profiles-dir', '/opt/auto_tuning/config/navigation_profiles'], timeout=30)
+        command('prospective_plant_candidate',
+                ['python3', '/opt/auto_tuning/tools/prepare_plant_candidate.py', 'verify',
+                 '--installed-share', str(prefixes['truck_bringup'] / 'share/truck_bringup'),
+                 '--config', '/opt/auto_tuning/config'], timeout=30)
+        # --help parses the receiver CLI; it does not import rclpy or create a
+        # DDS participant, and there is no actuator publisher mode.
+        command('ackermann_shadow_cli',
+                ['python3', '/opt/auto_tuning/tools/ackermann_adapter.py', '--help'], timeout=30)
     else:
         add('prospective_model_contract', False, reason='truck_bringup prefix unavailable')
         add('prospective_navigation_profiles', False, reason='truck_bringup prefix unavailable')
+        add('prospective_plant_candidate', False, reason='truck_bringup prefix unavailable')
+        add('ackermann_shadow_cli', False, reason='truck_bringup prefix unavailable')
     add('prospective_model_search_path', '/opt/auto_tuning/config/models' in
+        os.environ.get('GAZEBO_MODEL_PATH', '').split(os.pathsep))
+    add('prospective_plant_search_path', '/opt/auto_tuning/config/plant_candidate/models' in
         os.environ.get('GAZEBO_MODEL_PATH', '').split(os.pathsep))
     for binary in ('Xvfb', 'gzclient'):
         add('visual_observer_binary:' + binary, shutil.which(binary) is not None,

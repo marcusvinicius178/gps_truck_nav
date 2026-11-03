@@ -6,9 +6,17 @@
 
 O proprietário já executou `host_preflight.py` e forneceu o JSON. A leitura integral confirmou Ubuntu 22.04.5, 32 CPUs lógicas, 60,3 GiB RAM, Docker 29.8.2/Compose 5.5.1, daemon local e Git/LFS existentes. Humble deve permanecer intacto; não instalar Gazebo no host. Detalhes e limites estão em `host_preflight_ipt_sim_01.md`.
 
-O próximo passo é a **seção 2.4 de `local_setup_runbook.md`**: atualizar o checkout dedicado, reconstruir a imagem e, somente após IMAGE_VALIDATED, repetir o probe canônico, verificar opcionalmente os perfis e abrir a observação visual. A investigação atual está em `third_independent_review.md`, `speed_limits_provenance.md`, `actuation_validation_protocol.md` e `visual_observation_runbook.md`. Os arquivos completos estão no branch da PR #2; não há edição manual por trechos. Retornar o novo ZIP ao revisor independente. Falha de build interrompe a sequência e preserva os logs.
+O próximo passo está na seção atual de escolha da planta em `local_setup_runbook.md`: atualizar o checkout dedicado, reconstruir a imagem e, somente após IMAGE_VALIDATED, repetir os probes indicados e abrir a observação visual. A investigação atual está em `third_independent_review.md`, `speed_limits_provenance.md`, `actuation_validation_protocol.md` e `visual_observation_runbook.md`. Os arquivos completos estão no branch da PR #2; não há edição manual por trechos. Retornar o novo ZIP ao revisor independente. Falha de build interrompe a sequência e preserva os logs.
 
-Os perfis 20/25 km/h têm YAMLs completos e readback próprio, sem alteração dos valores históricos. O core de atuação é puramente offline e não está ligado ao veículo. O visor mostra Gazebo/RViz via imagens em localhost, sem canal de entrada para o container. Preparar demonstração observável é a prioridade; nenhuma limpeza cosmética de warnings ou contagem de PASS substitui comportamento funcional, parada medida ou validade científica.
+Os perfis 20/25 km/h têm YAMLs completos e readback próprio, sem alteração dos valores históricos. A escolha incremental é manter temporariamente Gazebo Classic 11 e preparar uma pequena interface ROS 2, sem modificar o plugin upstream. O core estático e o observador ROS sem publisher de atuação não estão ligados ao veículo. O candidato separa o tópico de atuação, reconcilia a origem cinemática no eixo traseiro, o raio estático e os envelopes prospectivos; comportamento dinâmico e interrupção ainda dependem de ensaios autorizados. O visor mostra Gazebo/RViz via imagens em localhost, sem canal de entrada para o container. Preparar demonstração observável é a prioridade; nenhuma limpeza cosmética de warnings ou contagem de PASS substitui comportamento funcional, parada medida ou validade científica.
+
+## Escopo científico atualizado
+
+O produto principal do doutorado é um framework de fine-tuning automático de parâmetros Nav2 sobre uma planta Mercedes Arocs validada e fisicamente coerente. **Não é requerido benchmark planta histórica versus corrigida.** Arquivos, imagens e experimentos históricos ficam preservados para rastreabilidade; a referência operacional dos novos experimentos será a planta prospectiva após sua validação.
+
+A comparação científica principal é parâmetros de referência versus parâmetros otimizados com a planta/interface fixas. Se houver tempo, estender a comparação a outros pares planejador–controlador, mantendo a mesma planta dentro de cada comparação e métricas de segurança, acompanhamento, tempo e suavidade previamente definidas. Um reparo da planta não pode ser creditado ao tuning. O benchmark opcional não deve adiar a demonstração funcional inicial.
+
+Ordem de entrega: fechar o contrato estático e validar atuação → observar Gazebo/RViz → autorizar e executar um ensaio supervisionado limitado → Gate 0 → Gate 1/reset/métricas → framework → benchmark opcional. `prospective_plant_validation.md` transforma essa ordem em critérios verificáveis. As evidências já aprovadas de TF, sensores, costmaps e BTs são preservadas; apenas regressões ou falhas com impacto demonstrado reabrem esses itens.
 
 ## Entregáveis
 
@@ -33,6 +41,9 @@ Os perfis 20/25 km/h têm YAMLs completos e readback próprio, sem alteração d
 | `tools/auto_tuning/tf_timing_contract.py`, `localization_alignment.py`, `runtime_binary_identity.py`, `audit_ackermann_geometry.py` | Clock da mesma janela, comparações exatas de stamp, identidade de bibliotecas mapeadas e contrato estático sem atuação. |
 | `docs/auto_tuning/second_independent_review.md` e três contratos técnicos associados | Causas, limites, política de covariância, caminho de atuação e critérios verificáveis de fechamento. |
 | `tests/test_host_preflight.py`, `test_local_phase_a.py`, `test_prepare_candidates.py`, `test_evaluate_trial.py`, `test_gate0_localization_contract.py` | Regressões sem dependência de runtime ROS; Docker simulado por fixtures nos testes do helper. |
+| `tools/auto_tuning/ackermann_adapter.py` | Observador ROS sem publisher de atuação: entrada, clock/odom, proveniência e candidatos condicionais em JSON. Sem opção live. |
+| `config/auto_tuning/plant_candidate/` | Bundle completo prospectivo: SDF/world/URDF, frame `rear_axle_nav`, perfis 20/25 km/h, política shadow e manifest reproduzível; sem alterar a geometria histórica. |
+| `docs/auto_tuning/prospective_plant_validation.md` | Escopo científico atualizado e sequência mínima até demonstração, Gates e tuning; benchmark histórico/corrigido dispensado. |
 | `docs/auto_tuning/evidence/` | Logs reais de testes/audit/LFS/sintaxe e resumo de proveniência. |
 
 Arquivo existente modificado: `src/gps_truck_nav/truck_bringup/launch/gps_waypoint_follower.launch.py`. A declaração `publish_legacy_cloud_tf` fica junto dos argumentos `use_gpu/use_xcb`; sua condição fica no Node `static_transform_cloud`. Default true preserva chamadas antigas; novas chamadas de diagnóstico usam false. Não é necessário inserir trechos manualmente: os arquivos do branch estão completos.
@@ -60,17 +71,17 @@ Verificação da continuação: **71 testes PASS**, incluindo 15 testes do novo 
 
 ## Bloqueios que impedem missão agora
 
-1. **Interface de comando:** core puro e supervisor offline testam conversão, ré/zero, saturação, autoridade e falhas. Geometria estática expõe incompatibilidade de max_steer/joint limits/raio; watchdog final e autoridade exclusiva reais ainda faltam. Nenhum conversor foi ligado ao veículo. Medição runtime e atuação autorizada posterior continuam necessárias.
+1. **Interface de comando:** core puro e supervisor offline testam conversão, ré/zero, saturação, autoridade e falhas; observador ROS não publica atuação. O candidato prospectivo reconcilia frame no eixo traseiro, raio 13,10 m derivado dos limites estáticos e tópico privado sem publishers. A semântica do PID da roda traseira direita exige também correção do alvo linear em curva. Watchdog final, autoridade exclusiva operacional, medições runtime e atuação autorizada posterior continuam necessários. Nenhum conversor foi ligado ao veículo.
 2. **Localização absoluta:** TF, headers e consistência interna GNSS/TF foram confirmados em a21403f; não reabrir sem regressão. Covariâncias e precisão contra referência independente permanecem pendentes; risco temporal no source navsat ainda exige correlação ao binário. Nenhum datum, geometria ou ruído foi substituído.
 3. **Percepção/parâmetros:** costmaps, BTs e readbacks obrigatórios Smac/MPPI estão confirmados. O produtor de `/external_area_pointcloud` não foi identificado; não habilitar Virtual Lanes para mascará-lo. Opcionais comprovadamente ausentes são distintos de RPCs com falha; nomes sem consumidor continuam fora da hipótese de tuning. Perfis 20/25 km/h precisam do novo readback e continuam sem autorização de atuação.
 4. **Missão/referência/velocidade:** rota ativa pública marcada 5_6 não pode ser assumida S1/S2/S3. Os limites atuais não definem automaticamente 20 km/h. O equivalente de steering do evaluator deve ser conciliado com o modelo.
 5. **Ambiente/medição:** imagem anterior identificada e validada no host; a imagem corrigida, incluindo compilação do adaptador ROS do observador, ainda depende de build local. `dpkg-query`, digest e logs continuam congelados por tentativa.
-6. **Automação:** a coleta agora produz critérios objetivos e `mission_ready=false`; faltam supervisor de missão, action JSON, recorder e reset entre A/B. O diagnóstico não os substitui.
+6. **Automação:** a coleta agora produz critérios objetivos e `mission_ready=false`; faltam supervisor de missão, action JSON, recorder e reset entre trials de referência e parâmetros otimizados sobre a mesma planta. O diagnóstico não os substitui.
 
 ## Revisão e próximo passo
 
 A revisão independente deve avaliar o escopo de preparação, a hipótese de reparo de localização e os bloqueios acima. A PR é **draft**, para revisão, sem merge. Não representa entrega do micro-PoC.
 
-Sequência seguinte: build/validação da imagem corrigida → probe diagnóstico → revisão independente das novas evidências → resolver atuação/sensores e obter autorização explícita antes de qualquer missão. Gate 0, supervisor, A/B/reset e busca permanecem etapas futuras. Não há Optuna instalado/configurado nem campanha de simulação nesta entrega.
+Sequência seguinte: build/validação da imagem corrigida → probe diagnóstico → revisão independente das novas evidências → resolver atuação/sensores e obter autorização explícita antes de qualquer missão. Gate 0, supervisor, reset comparável e busca permanecem etapas futuras. Não há Optuna instalado/configurado nem campanha de simulação nesta entrega.
 
 Os 212 runs históricos, suas métricas e a tese permanecem fora deste trabalho. Virtual Lanes segue independente e ainda não foi validada como restrição de navegação.

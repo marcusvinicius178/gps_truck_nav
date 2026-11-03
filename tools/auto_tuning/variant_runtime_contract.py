@@ -7,6 +7,60 @@ def finite(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def assess_candidate_runtime(observed):
+    """Observe candidate isolation/reference without upgrading motion readiness."""
+    candidate = observed.get('plant_candidate')
+    if not candidate:
+        return []
+    checks = []
+    topic = '/actuation/steering_command'
+    publishers = observed.get('topic_publishers', {})
+    subscribers = observed.get('topic_subscribers', {})
+    discovery_errors = observed.get('topic_discovery_errors', {})
+    complete = all(name in publishers and name in subscribers and name not in discovery_errors
+                   for name in (topic, '/cmd_vel', '/cmd_vel_nav'))
+    targets = subscribers.get(topic, [])
+    legacy = [endpoint for name in ('/cmd_vel', '/cmd_vel_nav') for endpoint in subscribers.get(name, [])
+              if endpoint.get('node_name') == 'ackermann_drive']
+    isolated = (not publishers.get(topic) and len(targets) == 1
+                and targets[0].get('node_name') == 'ackermann_drive'
+                and targets[0].get('topic_type') == 'geometry_msgs/msg/Twist'
+                and not legacy)
+    checks.append({'name': 'candidate_actuation_topic_isolated',
+                   'status': 'UNKNOWN' if not complete else 'PASS' if isolated else 'FAIL',
+                   'topic': topic, 'publishers': publishers.get(topic), 'subscribers': targets,
+                   'legacy_ackermann_subscribers': legacy,
+                   'scope': 'Observation mode requires zero plant command publishers. Not an actuation test.'})
+    reference = candidate.get('navigation_reference', {})
+    parent, child = reference.get('parent'), reference.get('frame')
+    wanted = reference.get('translation_m')
+    transform = observed.get('transforms', {}).get(str(parent) + '->' + str(child), {})
+    xyz, q = transform.get('translation', {}), transform.get('rotation', {})
+    valid = (parent == 'base_footprint' and child == 'rear_axle_nav'
+             and isinstance(wanted, list) and len(wanted) == 3 and all(finite(value) for value in wanted)
+             and transform.get('status') == 'OK' and all(finite(xyz.get(axis)) for axis in ('x', 'y', 'z'))
+             and all(math.isclose(xyz[axis], value, rel_tol=0, abs_tol=1e-9)
+                     for axis, value in zip(('x', 'y', 'z'), wanted)))
+    valid = valid and all(finite(q.get(axis)) for axis in ('x', 'y', 'z', 'w'))
+    valid = valid and all(abs(q[axis]) <= 1e-9 for axis in ('x', 'y', 'z')) and abs(abs(q['w']) - 1) <= 1e-9
+    authority = observed.get('tf_authority', {})
+    edges = [edge for edge in authority.get('edges', []) if edge.get('child') == child]
+    endpoints = {(item.get('topic'), item.get('gid')): item for item in authority.get('publishers', [])}
+    gids = {gid for edge in edges for gid in edge.get('publisher_gids', [])}
+    authority_complete = (authority.get('observation_complete') and not authority.get('endpoint_discovery_errors')
+                          and edges and all(edge.get('publisher_gids') and not edge.get('publisher_gid_unknown_count', 0)
+                                            for edge in edges))
+    authority_valid = (len(gids) == 1 and all(edge.get('parent') == parent and edge.get('topic') == '/tf_static'
+                      and all(endpoints.get((edge.get('topic'), gid), {}).get('node_name') == 'robot_state_publisher'
+                              for gid in edge.get('publisher_gids', [])) for edge in edges))
+    checks.append({'name': 'candidate_rear_axle_reference',
+                   'status': 'UNKNOWN' if not reference or transform.get('status') != 'OK' or not authority_complete
+                             else 'PASS' if valid and authority_valid else 'FAIL',
+                   'expected': reference, 'transform': transform, 'edges': edges,
+                   'scope': 'Fixed frame and observed authority only; rolling/slip and dynamic calibration remain unverified.'})
+    return checks
+
+
 def assess_variant_runtime(observed, clock_healthy, policy):
     checks = []
     def add(name, status, **details):
@@ -126,4 +180,5 @@ def assess_variant_runtime(observed, clock_healthy, policy):
         add('obstacle_source_samples:' + topic, 'BLOCKED_REVIEW' if not record else 'PASS' if live else 'FAIL',
             count=record.get('count', 0), age_sim_seconds=age, metadata=record.get('last'),
             scope='Sample liveness only; no synthetic source, remap or Virtual Lanes was enabled.')
+    checks.extend(assess_candidate_runtime(observed))
     return checks

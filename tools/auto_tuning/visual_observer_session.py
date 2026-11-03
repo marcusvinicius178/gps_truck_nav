@@ -5,6 +5,7 @@ import argparse
 import ctypes
 import ctypes.util
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -18,6 +19,10 @@ import xml.etree.ElementTree as ET
 
 EVIDENCE = Path('/evidence')
 CONFIG = Path('/opt/auto_tuning/config')
+_phase_spec = importlib.util.spec_from_file_location('visual_session_phase_helpers',
+                                                    Path(__file__).with_name('local_phase_a.py'))
+phase = importlib.util.module_from_spec(_phase_spec)
+_phase_spec.loader.exec_module(phase)
 
 
 def save(path, value):
@@ -33,7 +38,7 @@ def make_framebuffer_readable(path):
     path.chmod(0o644)
 
 
-def observation_world(source):
+def observation_world(source, model_uri='model://arocs_truck_tf_sensors'):
     """Add camera-only presentation settings; retain every source byte otherwise."""
     text = source.read_text()
     tree = ET.fromstring(text)
@@ -41,7 +46,7 @@ def observation_world(source):
     if world is None or world.find('gui') is not None or text.count('</world>') != 1:
         raise ValueError('Expected one world without an existing GUI section')
     truck = [item for item in world.findall('include')
-             if item.findtext('uri') == 'model://arocs_truck_tf_sensors']
+             if item.findtext('uri') == model_uri]
     if len(truck) != 1:
         raise ValueError('Expected the reviewed TF/sensor model exactly once')
     pose = [float(value) for value in truck[0].findtext('pose', '').split()]
@@ -128,12 +133,15 @@ def main(argv=None):
         parser.error('duration must be 60..1800 wall seconds')
     if (EVIDENCE / 'runtime_status.json').exists():
         parser.error('Refusing to restart a previous visual session')
+    selected_profile = os.environ.get('NAV2_PHASE_A_PROFILE', 'canonical')
+    selected_arguments = phase.navigation_arguments(selected_profile)
     os.environ.update(DISPLAY=':91', QT_QPA_PLATFORM='xcb', LIBGL_ALWAYS_SOFTWARE='1',
                       ROS_LOCALHOST_ONLY='1', ROS_DOMAIN_ID='71',
                       GAZEBO_MASTER_URI='http://127.0.0.1:11345')
     (EVIDENCE / 'framebuffer').mkdir()
     processes, logs = {}, []
     state = {'schema_version': 1, 'status': 'STARTING', 'gui_ready': False,
+             'navigation_profile': selected_profile,
              'mission_ready': False, 'motion_interface_exposed': False,
              'gate0': 'NOT_YET_VERIFIED', 'gate1': 'NOT_YET_VERIFIED'}
     stop_requested = False
@@ -158,8 +166,10 @@ def main(argv=None):
     started = time.monotonic()
     code = 0
     try:
-        source = CONFIG / 'worlds/ctvi_tf_sensors.world'
-        world, addition = observation_world(source)
+        source = Path(next(item.split(':=', 1)[1] for item in selected_arguments if item.startswith('world:=')))
+        model_uri = ('model://arocs_truck_candidate' if selected_profile in phase.CANDIDATE_PROFILES
+                     else 'model://arocs_truck_tf_sensors')
+        world, addition = observation_world(source, model_uri)
         path = EVIDENCE / 'observation_world.world'
         path.write_text(world)
         save(EVIDENCE / 'presentation_manifest.json', {
@@ -179,7 +189,8 @@ def main(argv=None):
               'use_gzclient:=false', 'use_rviz:=false', 'use_mapviz:=false', 'use_gpu:=false',
               'use_xcb:=true', 'publish_legacy_cloud_tf:=false', 'use_ackermann_bt:=true',
               'world:=' + str(path),
-              'localization_params_file:=/opt/auto_tuning/config/dual_ekf_navsat_gate0.yaml'])
+              'localization_params_file:=/opt/auto_tuning/config/dual_ekf_navsat_gate0.yaml']
+              + [item for item in selected_arguments if not item.startswith('world:=')])
         start('gazebo_gui', ['gzclient', '--verbose'])
         start('rviz_gui', ['ros2', 'run', 'rviz2', 'rviz2', '-d', str(CONFIG / 'observation.rviz'),
                            '--ros-args', '-p', 'use_sim_time:=true'])
@@ -187,7 +198,9 @@ def main(argv=None):
         while not stop_requested and time.monotonic() - started < args.duration:
             state['processes'] = {name: {'pid': proc.pid, 'returncode': proc.poll()}
                                   for name, proc in processes.items()}
-            failed = [name for name, proc in processes.items() if name != 'readiness' and proc.poll() is not None]
+            failed = [name for name, proc in processes.items()
+                      if (name not in ('readiness', 'actuation_shadow') and proc.poll() is not None)
+                      or (name == 'actuation_shadow' and proc.poll() not in (None, 0))]
             if failed:
                 raise RuntimeError('Required GUI/session process exited: ' + ', '.join(failed))
             try:
@@ -202,6 +215,8 @@ def main(argv=None):
                 (EVIDENCE / 'bringup_before_probe.log').write_bytes((EVIDENCE / 'bringup.log').read_bytes())
                 start('readiness', ['python3', '/opt/auto_tuning/tools/probe_readiness.py',
                                     '/evidence/runtime_probe', '--duration', '30'])
+                if selected_profile in phase.CANDIDATE_PROFILES:
+                    start('actuation_shadow', phase.shadow_arguments(selected_profile))
                 probe_started = True
             state.update(status='OBSERVING' if state['gui_ready'] else 'WAITING_FOR_WINDOWS',
                          updated_at_unix=time.time(), elapsed_wall_seconds=time.monotonic() - started)

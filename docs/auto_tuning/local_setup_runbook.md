@@ -1,6 +1,6 @@
 # Preparação local — ipt-sim-01, continuação da Fase A
 
-**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT_YET_VERIFIED.** O ZIP do commit `a21403f` confirma TF/frames, odometria/juntas, costmaps, duas BTs, lifecycle e parâmetros obrigatórios; esses reparos permanecem preservados. A captura PARTIAL decorre de instrumentação, não comprova falha de navegação. Seguir agora a **seção 2.4**: build/probe, readback opcional dos perfis 20/25 km/h e visualização estritamente observacional. Nenhum movimento. As seções anteriores ficam como histórico operacional.
+**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT_YET_VERIFIED.** O ZIP do commit `a21403f` confirma TF/frames, odometria/juntas, costmaps, duas BTs, lifecycle e parâmetros obrigatórios; esses reparos permanecem preservados. Seguir agora a **seção 2.5**: novo checkout isolado, build, probe do candidato Classic e visualização estritamente observacional. A variante ainda não é uma planta dinamicamente validada. Nenhum movimento. As seções anteriores ficam como histórico operacional.
 
 ## 1. Ambiente confirmado e isolamento
 
@@ -415,6 +415,177 @@ PY
 O ZIP não inclui meshes, imagens Docker, framebuffer XWD nem dados históricos. Imagens PNG só existirão se a captura opcional tiver sido solicitada. Não apagar uma tentativa para repetir: criar outro `third-review.*`. No diagnóstico schema 2, `collection_status=COMPLETE` pode incluir ausência opcional comprovada, enquanto `readback_collection_status=PARTIAL` preserva que nem todo nome recebeu valor. `required_collection_status` deve continuar COMPLETE; UNDECLARED/UNSUPPORTED_VERSION nunca tornam um knob elegível ao tuning.
 
 Retornar o ZIP ao revisor. O próximo movimento depende de revisão da atuação, geometria, autoridade, parada, percepção/localização e autorização posterior explícita. **Nenhum comando desta seção envia objetivo, Twist, missão ou inicia Optuna/Virtual Lanes.**
+
+### 2.5. Candidato Classic coerente e observação visual
+
+Ler `plant_interface_decision.md` e `prospective_plant_validation.md`. O candidato
+mantém geometria/datum/sensores, acrescenta a referência planar `rear_axle_nav`,
+translada o footprint sem mudar o corpo físico, usa raio 13.10 m derivado dos
+limites existentes e alinha os tetos MPPI/smoother em 20/25 km/h. O tópico final
+do plugin fica isolado em `/actuation/steering_command`, sem publisher. O
+adaptador shadow recebe mensagens e grava cálculos, sem publicar comandos.
+Isso prepara a validação da atuação; não concede autorização para movimento.
+
+**No ipt-sim-01**, executar o bloco completo em Bash. Ele preserva o checkout
+anterior e cria outro worktree a partir da PR. O SHA exato desta entrega consta
+na resposta; para fixá-lo, pode substituir `FETCH_HEAD` no `worktree add` por
+esse SHA. O novo diretório recebe todos os logs, sem remover imagens/containers
+ou alterar Docker/Humble/CARLA/Autoware. Nenhum `source` ROS no host.
+
+```bash
+task_root="$HOME/nav2-phase-a-ipt-sim-01.pMbd0n06"
+plant_root=$(mktemp -d "$task_root/plant-review.XXXXXXXX")
+printf 'Checkout e evidências desta tentativa: %s\n' "$plant_root"
+(
+  set -euo pipefail
+  test -n "$plant_root"
+  test -d "$plant_root"
+  git -C "$task_root/gps_truck_nav" fetch origin engineering/2026-10-preflight-gates \
+    2>&1 | tee "$plant_root/git_fetch.log"
+  GIT_LFS_SKIP_SMUDGE=1 git -C "$task_root/gps_truck_nav" worktree add --detach \
+    "$plant_root/gps_truck_nav" FETCH_HEAD
+  cd "$plant_root/gps_truck_nav"
+  git lfs checkout 2>&1 | tee "$plant_root/lfs_checkout.log"
+  git lfs fsck 2>&1 | tee "$plant_root/lfs_fsck.log"
+  test -z "$(git status --porcelain --untracked-files=all)"
+  test -f config/auto_tuning/plant_candidate/manifest.json
+  git rev-parse HEAD > "$plant_root/checkout_commit.txt"
+  /usr/bin/python3 -I tools/auto_tuning/local_phase_a.py build \
+    --repo "$plant_root/gps_truck_nav" --output-dir "$plant_root/build"
+  /usr/bin/python3 -I - "$plant_root/build/status.json" <<'PY'
+import json
+import sys
+if json.load(open(sys.argv[1])).get('status') != 'IMAGE_VALIDATED':
+    raise SystemExit('Imagem não validada. Preservar os logs; não iniciar o probe.')
+PY
+  /usr/bin/python3 -I tools/auto_tuning/local_phase_a.py probe \
+    --repo "$plant_root/gps_truck_nav" --build-dir "$plant_root/build" \
+    --output-dir "$plant_root/probe" --navigation-profile candidate20kmh
+)
+```
+
+`git lfs checkout` reaproveita os objetos locais. Se `fsck` indicar objeto
+ausente, interromper esse bloco e executar `git -C "$plant_root/gps_truck_nav"
+lfs pull` para hidratar apenas o checkout dedicado, preservando o log numa nova
+tentativa. Não limpar evidências para contornar erro de fonte. APT/base continuam
+elegíveis ao cache; os dois launches mudaram, então colcon/reinstalação do pacote
+podem ser refeitos. Não usar `--no-cache`, prune ou reiniciar Docker.
+
+O novo smoke verifica também o bundle reproduzível na disposição **instalada**,
+o argumento de URDF e a CLI shadow. A saída continua separada em:
+
+| Evidência | O que verificar |
+|---|---|
+| `build/status.json` | IMAGE_VALIDATED, imagem por ID e source manifest |
+| `probe/status.json` | OBSERVATIONS_COLLECTED, estado diagnóstico separado, cleanup próprio |
+| `probe/runtime_probe/readiness.json` | lifecycle/TF/sensores/parâmetros anteriores e checks do candidato |
+| `probe/runtime_probe/navigation_profile.json` | candidate20kmh e hashes da seleção |
+| `probe/runtime_probe/plugin_parameters.json` | readback requerido completo, valores de Smac/MPPI realmente retornados |
+| `probe/runtime_probe/speed_chain.json` | tetos efetivos e publishers que continuam fora do smoother |
+| `probe/runtime_probe/plant_candidate.json` | seleção e contrato da planta prospectiva |
+| `probe/actuation_shadow/shadow_summary.json` | zero publishers criados, ausência de entrada não nula/inválida; NOT_EXERCISED esperado sem goals |
+| `probe/actuation_shadow/shadow_commands.jsonl` | entradas realmente recebidas, se existirem; nenhum estímulo é gerado |
+
+Os checks `candidate_actuation_topic_isolated` e
+`candidate_rear_axle_reference` precisam demonstrar o subscriber privado, zero
+publishers e frame fixo/autoridade correta. Conferir os nomes exatos registrados
+no JSON se a ferramenta reportar erro. A ausência de comando não prova conversão
+dinâmica. `SHADOW_COMPLETE` significa coleta concluída; mission_ready permanece
+false e diagnóstico bloqueado para atuação. Qualquer entrada não nula/NaN/Inf
+observada no shadow aborta a tentativa, preserva os dados e encerra seu container.
+
+**Abrir Gazebo Classic/RViz em observação**, após OBSERVATIONS_COLLECTED desta
+mesma imagem/seleção, sem atualizar o worktree:
+
+```bash
+(
+  set -euo pipefail
+  cd "$plant_root/gps_truck_nav"
+  /usr/bin/python3 -I tools/auto_tuning/visual_observer.py start \
+    --repo "$plant_root/gps_truck_nav" --build-dir "$plant_root/build" \
+    --probe-dir "$plant_root/probe" --output-dir "$plant_root/visual" --duration 900
+  /usr/bin/python3 -I tools/auto_tuning/visual_observer.py serve \
+    --session-dir "$plant_root/visual" --port 8765
+)
+```
+
+Abrir **no navegador do ipt-sim-01** a URL localhost impressa. São os pixels de
+Gazebo/RViz reais no container; o visor não transmite mouse/teclado. Observar
+Arocs, rodas, sensores, TF e footprint/costmaps. Plano/trajetória vazios são
+esperados nesta etapa sem goals. Pan/zoom/objetivo interativos ficam para a etapa
+supervisionada autorizada. A seleção candidate20kmh é herdada do probe; não se
+abre silenciosamente a planta canônica. A sessão encerra em até 900 s e conserva
+logs. Não tratar interface visível como validação de parada ou percepção.
+
+`Ctrl-C` no serve encerra a sessão própria. Em outro terminal, estes comandos
+consultam e encerram somente a sessão cujo ID/labels foram registrados:
+
+```bash
+read -r -p 'Caminho completo da pasta plant-review desta tentativa: ' plant_root
+cd "$plant_root/gps_truck_nav"
+/usr/bin/python3 -I tools/auto_tuning/visual_observer.py status --session-dir "$plant_root/visual"
+/usr/bin/python3 -I tools/auto_tuning/visual_observer.py stop --session-dir "$plant_root/visual"
+```
+
+**Opcional, somente readback do teto posterior de 25 km/h**, nunca um ensaio
+nessa velocidade:
+
+```bash
+cd "$plant_root/gps_truck_nav"
+/usr/bin/python3 -I tools/auto_tuning/local_phase_a.py probe \
+  --repo "$plant_root/gps_truck_nav" --build-dir "$plant_root/build" \
+  --output-dir "$plant_root/probe-25kmh" --navigation-profile candidate25kmh
+```
+
+Depois de encerrar a visualização, empacotar apenas as evidências novas:
+
+```bash
+/usr/bin/python3 -I - "$plant_root" <<'PY'
+from pathlib import Path
+import hashlib
+import json
+import sys
+import zipfile
+root = Path(sys.argv[1]).resolve(strict=True)
+archive = root / 'nav2_prospective_plant_evidence.zip'
+allowed = {'.json', '.jsonl', '.log', '.txt', '.tsv', '.yaml', '.rviz', '.world', '.png'}
+with zipfile.ZipFile(archive, 'x', zipfile.ZIP_DEFLATED) as out:
+    for name in ('checkout_commit.txt', 'git_fetch.log', 'lfs_checkout.log', 'lfs_fsck.log'):
+        path = root / name
+        if path.is_file() and not path.is_symlink():
+            out.write(path, path.relative_to(root))
+    for name in ('build', 'probe', 'probe-25kmh', 'visual'):
+        directory = root / name
+        if not directory.is_dir() or directory.is_symlink():
+            continue
+        for path in sorted(directory.rglob('*')):
+            if (path.is_file() and not path.is_symlink()
+                    and path.resolve().is_relative_to(directory.resolve())
+                    and (path.suffix in allowed or path.name == 'container.id')):
+                out.write(path, path.relative_to(root))
+identity = {'archive': archive.name, 'sha256': hashlib.sha256(archive.read_bytes()).hexdigest()}
+with (root / 'archive_identity.json').open('x') as stream:
+    json.dump(identity, stream, indent=2)
+    stream.write('\n')
+print(archive)
+print('SHA-256:', identity['sha256'])
+PY
+```
+
+O retorno útil é esse ZIP e as observações visuais. Não repetir indefinidamente
+probes para eliminar warnings: avaliar apenas falhas que afetem a cadeia de
+comando, geometria, localização/percepção do percurso ou a evidência necessária.
+Após revisão, a próxima etapa será autorização de um ensaio delimitado de
+conversão/dinâmica/parada; primeiro objetivo de navegação vem depois desse aceite.
+O protocolo em `prospective_plant_validation.md` define os critérios e registros.
+O caminho final de publicação com supervisão independente ainda precisa ser
+conectado e ensaiado nessa etapa, não está ativo aqui.
+
+O framework compara parâmetros de referência e otimizados **com a mesma planta
+validada fixa**. Histórico fica rastreável; não é necessário benchmark
+histórico/corrigido. Benchmark entre pares planejador–controlador é posterior e
+condicionado ao tempo. Nenhum comando desta seção publica Twist, goal, missão,
+inicia Optuna, fine-tuning ou Virtual Lanes.
 
 ## 3. Depois de IMAGE_VALIDATED: bringup headless diagnóstico
 

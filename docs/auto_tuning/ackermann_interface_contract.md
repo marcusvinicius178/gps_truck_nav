@@ -1,4 +1,20 @@
-# Interface Ackermann — contrato prospectivo, revisões 2–3
+# Interface Ackermann — contrato prospectivo, revisões 2–4
+
+**Atualização vigente — revisão 4:** a decisão e a variante completa estão em
+`plant_interface_decision.md`. O histórico abaixo permanece rastreável, mas a
+próxima coleta usa o candidato Classic explícito: raio13.10 m derivado das
+juntas, frame traseiro/footprint coerentes, perfis20/25 km/h e tópico final
+isolado. O adaptador ROS receive-only `ackermann_adapter.py` calcula sem publicar.
+Foi identificada uma correção adicional à hipótese longitudinal anterior:
+o PID do plugin mede a roda traseira direita, portanto o alvo ideal é
+`v_plugin=v_eixo−omega*y_direita`, com `y_direita=−1.299 m`. A fórmula de
+esterçamento abaixo continua válida quando os sinais das velocidades coincidem;
+a velocidade linear não deve ser copiada como se o feedback fosse no centro.
+`actuation_contract.py` preserva o núcleo anterior; `convert_classic` acrescenta
+essa transformação e limites independentes. Hipótese de rolamento, dinâmica e
+parada permanecem pendentes. Fonte upstream não foi modificada. Nesta revisão,
+o limite SDF prospectivo é alterado explicitamente, sem alterar juntas/geometria
+ou arquivos históricos. Os parágrafos seguintes descrevem os achados originais.
 
 **Movimento bloqueado. Gate 0 e Gate 1: NOT_YET_VERIFIED.** Este documento deriva a interface e explicita o que falta validar. O auditor associado só lê XML e calcula geometria/equações; não contém ROS, publisher, subscriber, goal ou comando de atuação. Nenhum conversor foi conectado ao bringup e nenhum parâmetro físico foi substituído.
 

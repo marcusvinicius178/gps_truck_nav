@@ -27,6 +27,52 @@ IMAGE_RE = re.compile(r"sha256:[0-9a-f]{64}\Z")
 CID_RE = re.compile(r"[0-9a-f]{64}\Z")
 DIGEST_RE = re.compile(r"osrf/ros@sha256:[0-9a-f]{64}\Z")
 LABEL = "nav2.phase_a.run_id"
+NAVIGATION_PROFILES = ('canonical', '20kmh', '25kmh', 'candidate20kmh', 'candidate25kmh')
+CANDIDATE_PROFILES = ('candidate20kmh', 'candidate25kmh')
+
+
+def navigation_arguments(profile):
+    """One explicit selection shared by headless and visual observation."""
+    if profile not in NAVIGATION_PROFILES:
+        raise PhaseError('Unknown prospective navigation profile')
+    root = '/opt/auto_tuning/config'
+    if profile in CANDIDATE_PROFILES:
+        candidate = root + '/plant_candidate'
+        return ['world:=' + candidate + '/worlds/ctvi_plant_candidate.world',
+                'robot_description_file:=' + candidate + '/urdf/arocs_truck_candidate.urdf',
+                'params_file:=' + candidate + '/navigation/' + profile + '.yaml']
+    result = ['world:=' + root + '/worlds/ctvi_tf_sensors.world']
+    if profile != 'canonical':
+        result.append('params_file:=' + root + '/navigation_profiles/' + profile + '.yaml')
+    return result
+
+
+def shadow_arguments(profile, output='/evidence/actuation_shadow'):
+    if profile not in CANDIDATE_PROFILES:
+        raise PhaseError('Shadow conversion requires an explicit plant candidate')
+    candidate = '/opt/auto_tuning/config/plant_candidate'
+    return ['python3', '/opt/auto_tuning/tools/ackermann_adapter.py',
+            '--model', candidate + '/models/arocs_truck_candidate/model.sdf',
+            '--policy', candidate + '/policies/' + profile + '_shadow.json',
+            '--output-dir', output, '--duration', '30',
+            '--input-topic', '/cmd_vel', '--odom-topic', '/odom']
+
+
+def shadow_result(output):
+    path = output / 'actuation_shadow/shadow_summary.json'
+    result = json.loads(path.read_text())
+    if (not isinstance(result, dict) or result.get('status') != 'SHADOW_COMPLETE'
+            or result.get('command_publishers_created') != 0
+            or result.get('mission_ready') is not False
+            or result.get('runtime_authorized') is not False
+            or result.get('unexpected_nonzero_observed') is not False
+            or result.get('invalid_command_observed') is not False
+            or result.get('diagnostic_status') != 'BLOCKED_ACTUATION_REVIEW'):
+        raise PhaseError('Shadow adapter evidence violates the observation-only contract')
+    return {'mode': 'RECEIVE_ONLY', 'evidence': 'actuation_shadow',
+            'summary_sha256': file_hash(path), 'conversion_status': result.get('conversion_status'),
+            'actuator_publisher_created': False, 'motion_authorized': False,
+            'scope': 'Conversion is not exercised when no commands arrive; no commands are generated.'}
 
 
 class PhaseError(RuntimeError):
@@ -297,7 +343,7 @@ def build(repo, output, runner, docker, status):
 
 def probe(repo, build_dir, output, runner, docker, status, *, warmup_seconds=10, sleep=time.sleep,
           navigation_profile="canonical"):
-    if navigation_profile not in ("canonical", "20kmh", "25kmh"):
+    if navigation_profile not in NAVIGATION_PROFILES:
         raise PhaseError("Unknown prospective navigation profile")
     previous = json.loads((build_dir / "status.json").read_text())
     if not isinstance(previous, dict) or previous.get("stage") != "build" or previous.get("status") != "IMAGE_VALIDATED":
@@ -312,17 +358,15 @@ def probe(repo, build_dir, output, runner, docker, status, *, warmup_seconds=10,
     save_json(output / "image_inspect.json", image_inspection(runner, docker, image_id, "image_inspect"))
     status.update(image_id=image_id, build_directory=str(build_dir), build_status_sha256=file_hash(build_dir / "status.json"))
     status['navigation_profile'] = navigation_profile
-    status['profile_scope'] = 'Parameter readback only; no motion or actuator adapter is enabled.'
+    status['profile_scope'] = 'Parameter readback and receive-only observation; no actuator publisher is enabled.'
     cid_file = output / "container.id"
     run_id = status["run_id"]
     command = [image_id, "xvfb-run", "-a", "-e", "/evidence/xvfb.log", "-s", "-screen 0 1280x720x24 -nolisten tcp",
                "ros2", "launch", "truck_bringup", "gps_waypoint_follower.launch.py",
                "use_gzclient:=false", "use_rviz:=false", "use_mapviz:=false", "use_gpu:=false",
                "use_xcb:=false", "publish_legacy_cloud_tf:=false", "use_ackermann_bt:=true",
-               "world:=/opt/auto_tuning/config/worlds/ctvi_tf_sensors.world",
                "localization_params_file:=/opt/auto_tuning/config/dual_ekf_navsat_gate0.yaml"]
-    if navigation_profile != 'canonical':
-        command.append('params_file:=/opt/auto_tuning/config/navigation_profiles/' + navigation_profile + '.yaml')
+    command += navigation_arguments(navigation_profile)
     try:
         runner.run("headless_create", docker + container_options(output, run_id, "headless") + command, capture=False)
         cid = owned_id(cid_file)
@@ -338,6 +382,10 @@ def probe(repo, build_dir, output, runner, docker, status, *, warmup_seconds=10,
         runner.run("runtime_probe", docker + ["exec", "--env", "NAV2_PHASE_A_PROFILE=" + navigation_profile,
                    cid, "/entrypoint.sh", "bash",
                    "/opt/auto_tuning/tools/collect_runtime_evidence.sh", "/evidence/runtime_probe"], timeout=900, capture=False)
+        if navigation_profile in CANDIDATE_PROFILES:
+            runner.run('actuation_shadow', docker + ['exec', cid, '/entrypoint.sh']
+                       + shadow_arguments(navigation_profile), timeout=60, capture=False)
+            status['actuation_shadow'] = shadow_result(output)
         state = inspect_container(runner, docker, cid, "headless_after_probe")
         if state.get("State", {}).get("Running") is not True:
             raise PhaseError("Bringup container exited during evidence collection")
@@ -362,7 +410,7 @@ def main(argv=None):
     parser.add_argument("--repo", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--build-dir", type=Path)
-    parser.add_argument("--navigation-profile", choices=("canonical", "20kmh", "25kmh"), default="canonical",
+    parser.add_argument("--navigation-profile", choices=NAVIGATION_PROFILES, default="canonical",
                         help="Probe-only parameter profile; does not enable movement")
     args = parser.parse_args(argv)
     if (args.stage == "probe") != bool(args.build_dir):

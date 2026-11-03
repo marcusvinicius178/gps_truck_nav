@@ -14,7 +14,7 @@ import time
 
 import yaml
 
-from readiness_contract import LIFECYCLE_NODES, assess, costmap_bounds, expected_parameters
+from readiness_contract import LIFECYCLE_NODES, assess, costmap_bounds, expected_parameters, candidate_expected_parameters
 from localization_alignment import analyze_alignment
 from parameter_probe import PluginParameterProbe
 from plugin_parameter_contract import installed_plugin_provenance, parse_configuration_logs, assess_plugin_parameters
@@ -92,17 +92,23 @@ def collect(output, duration, observed, expected):
     localization = Path('/opt/auto_tuning/config/dual_ekf_navsat_gate0.yaml')
     canonical_config = yaml.safe_load(canonical.read_text())
     profile_name = os.environ.get('NAV2_PHASE_A_PROFILE', 'canonical')
-    if profile_name not in ('canonical', '20kmh', '25kmh'):
+    candidate_selected = profile_name in ('candidate20kmh', 'candidate25kmh')
+    if profile_name not in ('canonical', '20kmh', '25kmh', 'candidate20kmh', 'candidate25kmh'):
         raise ValueError('Unknown NAV2_PHASE_A_PROFILE')
     profile_directory = Path('/opt/auto_tuning/config/navigation_profiles')
-    if profile_name != 'canonical':
+    if candidate_selected:
+        from prepare_plant_candidate import load_selected_profile as load_plant_profile
+        profile_directory = Path('/opt/auto_tuning/config/plant_candidate')
+        canonical_config, profile_entry = load_plant_profile(canonical, profile_directory, profile_name)
+        observed['plant_candidate'] = json.loads((profile_directory / 'manifest.json').read_text())
+    elif profile_name != 'canonical':
         canonical_config, profile_entry = load_selected_profile(canonical, profile_directory, profile_name)
     else:
         profile_entry = {'scope': 'Canonical configuration readback; historical behavior not inferred from YAML.'}
     observed['navigation_profile'] = {'name': profile_name, 'source': str(canonical),
         'source_sha256': digest(canonical), 'entry': profile_entry,
         'scope': 'PARAMETER_VERIFICATION_ONLY', 'motion_authorized': False}
-    expected.update(expected_parameters(canonical_config))
+    expected.update((candidate_expected_parameters if candidate_selected else expected_parameters)(canonical_config))
     localization_config = yaml.safe_load(localization.read_text())
     datum = localization_config['navsat_transform']['ros__parameters']['datum']
     for name, keys in {
@@ -117,7 +123,9 @@ def collect(output, duration, observed, expected):
         expected['/' + name] = {key: configured[key] for key in keys}
     observed['source_files'] = {str(path): digest(path) for path in (canonical, localization)}
     if profile_name != 'canonical':
-        for path in (profile_directory / (profile_name + '.yaml'), profile_directory / 'manifest.json'):
+        profile_file = (profile_directory / 'navigation' / (profile_name + '.yaml') if candidate_selected
+                        else profile_directory / (profile_name + '.yaml'))
+        for path in (profile_file, profile_directory / 'manifest.json'):
             observed['source_files'][str(path)] = digest(path)
     observed['expected_parameters'] = expected
     observed['datum_configuration'] = {'latitude': datum[0], 'longitude': datum[1], 'yaw_radians': datum[2],
@@ -130,17 +138,20 @@ def collect(output, duration, observed, expected):
     observed['ackermann_library'] = {'path': str(library), 'sha256': digest(library)}
     for path in (share / 'models/arocs_truck/model.sdf', share / 'urdf/arocs_truck.urdf'):
         observed['source_files'][str(path)] = digest(path)
-    profile = Path('/opt/auto_tuning/config/tf_sensor_model_variant.json')
+    profile = (profile_directory / 'manifest.json' if candidate_selected
+               else Path('/opt/auto_tuning/config/tf_sensor_model_variant.json'))
     observed['model_variant'] = json.loads(profile.read_text())
     observed['source_files'][str(profile)] = digest(profile)
     for relative in observed['model_variant']['variant_sha256']:
-        path = profile.parent / relative
+        path = Path('/opt/auto_tuning/config') / relative
         observed['source_files'][str(path)] = digest(path)
     observed['runtime_binary_identity'] = inspect_runtime_binaries(launch_log=output.parent / 'bringup_before_probe.log')
     observed['plugin_provenance'] = installed_plugin_provenance()
     observed['plugin_provenance']['runtime_binary_identity'] = observed['runtime_binary_identity']
+    model = (profile_directory / 'models/arocs_truck_candidate/model.sdf' if candidate_selected
+             else profile.parent / 'models/arocs_truck_tf_sensors/model.sdf')
     observed['ackermann_geometry'] = audit_model(
-        profile.parent / 'models/arocs_truck_tf_sensors/model.sdf',
+        model,
         canonical_config['planner_server']['ros__parameters']['GridBased']['minimum_turning_radius'])
     observed['ackermann_geometry']['requested_radius_source'] = 'Selected navigation YAML; effective values are queried separately.'
 
@@ -346,7 +357,8 @@ def collect(output, duration, observed, expected):
         else:
             observed['plugin_parameters']['configure_log_error'] = 'No frozen bringup log before this probe.'
         observed['plugin_parameters']['assessment'] = assess_plugin_parameters(observed['plugin_parameters'])
-        for topic in sorted(set(obstacle_topics + ['/tf', '/tf_static', '/joint_states', '/cmd_vel_nav', '/cmd_vel'])):
+        command_topics = ['/actuation/steering_command'] if candidate_selected else []
+        for topic in sorted(set(obstacle_topics + command_topics + ['/tf', '/tf_static', '/joint_states', '/cmd_vel_nav', '/cmd_vel'])):
             try:
                 observed['topic_publishers'][topic] = [
                     {'node_name': endpoint.node_name, 'node_namespace': endpoint.node_namespace,
@@ -359,9 +371,12 @@ def collect(output, duration, observed, expected):
             except Exception as error:
                 observed['topic_discovery_errors'][topic] = str(error)
 
-        for parent, child in (('map', 'base_footprint'), ('odom', 'base_footprint'),
+        transforms = [('map', 'base_footprint'), ('odom', 'base_footprint'),
                               ('base_footprint', 'base_link'), ('base_footprint', 'gps_link'),
-                              ('base_footprint', 'imu_link'), ('map', 'gps_link')):
+                              ('base_footprint', 'imu_link'), ('map', 'gps_link')]
+        if candidate_selected:
+            transforms += [('base_footprint', 'rear_axle_nav'), ('map', 'rear_axle_nav'), ('odom', 'rear_axle_nav')]
+        for parent, child in transforms:
             key = parent + '->' + child
             try:
                 transform = buffer.lookup_transform(parent, child, Time())
@@ -371,7 +386,8 @@ def collect(output, duration, observed, expected):
                 observed['transforms'][key] = {'status': 'UNAVAILABLE', 'error': str(error)}
         for name, frame in (('global_costmap', 'map'), ('local_costmap', 'odom')):
             metadata = observed['topics'].get('/' + name + '/costmap', {}).get('last', {})
-            pose = observed['transforms'].get(frame + '->base_footprint', {})
+            base = canonical_config[name][name]['ros__parameters']['robot_base_frame']
+            pose = observed['transforms'].get(frame + '->' + base, {})
             observed['costmap_bounds'][name] = costmap_bounds(metadata, pose, frame)
 
         observed['localization_sample_history'] = {name: list(samples) for name, samples in histories.items()}
@@ -423,7 +439,7 @@ def main(argv=None):
         parser.error('output_directory must already exist')
     for name in ('readiness.json', 'readiness_observations.json', 'tf_authority.json', 'tf_authority_process.log',
                  'plugin_parameters.json', 'runtime_binary_identity.json', 'localization_alignment.json', 'ackermann_geometry.json',
-                 'navigation_profile.json', 'speed_chain.json'):
+                 'navigation_profile.json', 'speed_chain.json', 'plant_candidate.json'):
         if (output / name).exists() or (output / name).is_symlink():
             parser.error('Refusing to replace earlier evidence: ' + name)
     observed = {'schema_version': 1, 'started_at_utc': datetime.now(timezone.utc).isoformat(),
@@ -452,6 +468,7 @@ def main(argv=None):
                           ('runtime_binary_identity.json', 'runtime_binary_identity'),
                           ('localization_alignment.json', 'alignment'),
                           ('navigation_profile.json', 'navigation_profile'),
+                          ('plant_candidate.json', 'plant_candidate'),
                           ('speed_chain.json', 'speed_chain'),
                           ('ackermann_geometry.json', 'ackermann_geometry')):
         write_new(output / filename, observed.get(key, {'status': 'UNAVAILABLE'}))

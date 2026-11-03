@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "base_commit": "d17fcecb51178eb566d4572f92644098652bd5dd",
+  "decision": "TEMPORARY_CLASSIC_11_WITH_SMALL_ROS2_ADAPTER",
+  "implementation_stage": "ISOLATED_STATIC_CANDIDATE_AND_RECEIVE_ONLY_SHADOW",
+  "tests": {
+    "count": 416,
+    "passed": 416,
+    "failed": 0,
+    "scope": "OFFLINE_UNIT_AND_FIXTURE_TESTS"
+  },
+  "structural_audit": "PASS",
+  "documentation_bash_fences_checked": 29,
+  "embedded_python_blocks_checked": 11,
+  "protected_source_files_checked": 8,
+  "artifact_sha256": {
+    "plant_review_tests.log": "8e073b10bcc0243dbb658c1dd0fa2b22b94637e1b2449782768220c8ed438113",
+    "plant_review_checks.log": "4191992584632d22e771e175a3b3922a8c74d8848d369670ae4bb57cc1df4228",
+    "plant_review_protected_files.json": "4622d1ef13a40ff1c4cf15f6b1a5508874754fef2c84ae1c9ea774184062c9ea",
+    "plant_review_conversion_examples.json": "9d3280aaa8f45204d593f63d6acba6c6eb0559f7bb0685ec68672cc7e6aa2a04"
+  },
+  "candidate_manifest_sha256": "ce352910dc712cee78c7d56e00919e63375acf7b241934482c09622abf7e7888",
+  "runtime_executed": false,
+  "gui_executed": false,
+  "motion_executed": false,
+  "plant_dynamically_validated": false,
+  "live_adapter_connected": false,
+  "mission_ready": false,
+  "gate0": "NOT_YET_VERIFIED",
+  "gate1": "NOT_YET_VERIFIED",
+  "latest_host_evidence_commit": "a21403fcc67e027e29010d29f6339a580dfb7076",
+  "scientific_comparison": "Reference versus optimized parameters on the same fixed validated prospective plant; historical plant benchmark not required.",
+  "remaining_functional_requirements": [
+    "Host image/probe/visual validation of this exact candidate",
+    "Final command authority and independent simulation termination supervisor before connection",
+    "Explicit authorization for bounded low-speed actuation/stop tests",
+    "Physical geometry/contact/curvature/speed/sign and stop evidence",
+    "Localization and perception suitable to supervised test route"
+  ]
+}

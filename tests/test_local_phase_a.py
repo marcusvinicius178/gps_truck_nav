@@ -61,6 +61,13 @@ class FakeRunner:
             path = self.output / 'runtime_probe'
             path.mkdir()
             (path / 'readiness.json').write_text(json.dumps(self.readiness))
+        if name == 'actuation_shadow':
+            path = self.output / 'actuation_shadow'
+            path.mkdir()
+            (path / 'shadow_summary.json').write_text(json.dumps({
+                'status': 'SHADOW_COMPLETE', 'command_publishers_created': 0, 'mission_ready': False,
+                'runtime_authorized': False, 'unexpected_nonzero_observed': False, 'invalid_command_observed': False,
+                'diagnostic_status': 'BLOCKED_ACTUATION_REVIEW', 'conversion_status': 'NOT_EXERCISED'}))
         if name == "image_validation_run":
             return json.dumps({"status": "IMAGE_SMOKE_VALIDATED"})
         if name == "package_inventory":
@@ -114,6 +121,42 @@ class LocalPhaseTests(unittest.TestCase):
         with self.assertRaises(phase.PhaseError):
             self.probe(navigation_profile='90kmh')
         self.assertFalse(self.runner.calls)
+
+    def test_candidate_binds_world_urdf_parameters_and_receive_only_shadow(self):
+        self.probe(navigation_profile='candidate20kmh')
+        create = next(argv for name, argv, _ in self.runner.calls if name == 'headless_create')
+        capture = next(argv for name, argv, _ in self.runner.calls if name == 'runtime_probe')
+        shadow = next((argv, kw) for name, argv, kw in self.runner.calls if name == 'actuation_shadow')
+        base = '/opt/auto_tuning/config/plant_candidate'
+        for argument in ('world:=' + base + '/worlds/ctvi_plant_candidate.world',
+                         'robot_description_file:=' + base + '/urdf/arocs_truck_candidate.urdf',
+                         'params_file:=' + base + '/navigation/candidate20kmh.yaml'):
+            self.assertIn(argument, create)
+        self.assertIn('NAV2_PHASE_A_PROFILE=candidate20kmh', capture)
+        self.assertIn(base + '/policies/candidate20kmh_shadow.json', shadow[0])
+        self.assertIn('/opt/auto_tuning/tools/ackermann_adapter.py', shadow[0])
+        self.assertEqual(shadow[1]['timeout'], 60)
+        self.assertEqual(self.state['actuation_shadow']['conversion_status'], 'NOT_EXERCISED')
+        self.assertFalse(self.state['mission_ready'])
+
+    def test_shadow_error_stops_only_owned_container_and_keeps_probe_unfinished(self):
+        self.runner.fail = 'actuation_shadow'
+        with self.assertRaises(subprocess.TimeoutExpired):
+            self.probe(navigation_profile='candidate25kmh')
+        self.assertEqual(self.runner.stop_count, 1)
+        self.assertNotEqual(self.state.get('status'), 'OBSERVATIONS_COLLECTED')
+
+    def test_shadow_cannot_authorize_motion_or_create_an_actuator_publisher(self):
+        folder = self.out / 'actuation_shadow'; folder.mkdir()
+        record = {'status': 'SHADOW_COMPLETE', 'command_publishers_created': 0, 'mission_ready': False,
+                  'runtime_authorized': False, 'unexpected_nonzero_observed': False, 'invalid_command_observed': False,
+                  'diagnostic_status': 'BLOCKED_ACTUATION_REVIEW'}
+        for key, value in (('mission_ready', True), ('command_publishers_created', 1),
+                           ('diagnostic_status', 'PASS'), ('status', 'SHADOW_INCOMPLETE'),
+                           ('unexpected_nonzero_observed', True), ('invalid_command_observed', True)):
+            (folder / 'shadow_summary.json').write_text(json.dumps({**record, key: value}))
+            with self.assertRaises(phase.PhaseError):
+                phase.shadow_result(self.out)
 
     def test_probe_is_isolated_bounded_and_never_sends_goal(self):
         self.probe()

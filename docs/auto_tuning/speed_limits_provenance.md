@@ -67,10 +67,9 @@ API para a integração: `load_selected_profile(canonical_path, profiles_directo
 
 O runbook principal contém os comandos completos do build e do probe com `--navigation-profile`. O estado esperado dos assets é `PREPARED_DIAGNOSTIC_ONLY`, com `readiness=BLOCKED_ACTUATION_REVIEW`; o status da captura runtime depende da execução real. Todos os campos de autorização permanecem falsos nos manifests.
 
-Para comparação A/B futura, separar dois fatores:
+A diretriz científica atual dispensa um benchmark entre a planta histórica e a corrigida. Preservar fontes, imagens, configurações e evidências históricas para rastreabilidade; suas lacunas de versão, mapa, interface, sensores ou execução não criam uma obrigação de reconstrução comparativa. Os 212 experimentos anteriores não são alterados nem reclassificados.
 
-1. Preservar fonte/imagem/evidência histórica e seu contrato real. Uma navegação relatada como funcional não pode ser reconstruída somente a partir de um YAML público; registrar lacunas de versão, mapa, planta, interface, sensores, sementes e execução. Não executar a cadeia histórica de atuação neste estágio.
-2. Depois de validar a planta/interface prospectiva, congelá-las para comparar os perfis e, mais tarde, hiperparâmetros. Mesma planta, geometria, percepção, rota, estado inicial, seeds quando controláveis e reset comprovado. Não atribuir ao tuning um ganho obtido ao corrigir a interface yaw-rate/esterçamento.
+A comparação principal será **parâmetros de referência versus parâmetros otimizados**, mantendo fixa a planta prospectiva já validada, incluindo interface de atuação, geometria, percepção, modelo de ruído, rota, estado inicial e política de reset. Os perfis de 20 e 25 km/h são estratos experimentais: comparar referência/otimizado dentro de cada envelope, sem atribuir a um ajuste de parâmetros um ganho obtido pela mudança de velocidade ou correção da planta. O benchmark adicional entre pares planejador–controlador é opcional e depende do tempo disponível; não bloqueia a primeira demonstração nem a construção do framework. Ver `prospective_plant_validation.md`.
 
 Critérios mínimos antes de movimento: readbacks corretos com proveniência, atuação exclusiva validada, referências geométricas e limites reconciliados, watchdog final demonstrado, cancelamento/parada diferenciados, percepção/localização aprovadas e autorização do revisor. Somente um protocolo supervisionado autorizado pode avaliar velocidade atingida, trajetórias, saturações e segurança funcional.
 

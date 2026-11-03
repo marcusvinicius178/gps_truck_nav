@@ -85,6 +85,22 @@ def expected_parameters(canonical):
     return result
 
 
+def candidate_expected_parameters(config):
+    """Additional selected-frame and goal contracts for the isolated candidate."""
+    result = expected_parameters(config)
+    result['/bt_navigator']['robot_base_frame'] = config['bt_navigator']['ros__parameters']['robot_base_frame']
+    behavior = config['behavior_server']['ros__parameters']
+    result['/behavior_server'] = {key: behavior[key] for key in
+                                ('robot_base_frame', 'local_frame', 'global_frame', 'behavior_plugins')}
+    result['/behavior_server']['use_sim_time'] = True
+    controller = config['controller_server']['ros__parameters']
+    result['/controller_server']['goal_checker_plugins'] = controller['goal_checker_plugins']
+    for checker in controller['goal_checker_plugins']:
+        for key, value in flatten(controller[checker]).items():
+            result['/controller_server'][checker + '.' + key] = value
+    return result
+
+
 def equivalent(name, expected, actual):
     if name == 'footprint':
         try:
@@ -156,7 +172,7 @@ def assess(observed, expected):
         differences = {key: {'expected': value, 'actual': actual.get(key)}
                        for key, value in wanted.items() if not equivalent(key, value, actual.get(key))}
         add('parameters:' + node, 'FAIL' if differences else 'PASS', differences=differences,
-            scope='Clock only; full plugin values are assessed under plugin_parameters.'
+            scope='Selected effective runtime contract; full plugin values are also assessed under plugin_parameters.'
             if node in ('/planner_server', '/controller_server') else 'Selected effective runtime contract.')
     for name in LIFECYCLE_NODES:
         record = observed.get('lifecycle', {}).get('/' + name, {})

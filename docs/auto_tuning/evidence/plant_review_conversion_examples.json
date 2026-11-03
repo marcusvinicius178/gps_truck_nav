@@ -1,0 +1,257 @@
+{
+  "scope": "OFFLINE_CALCULATIONS_ONLY_NO_ROS_OR_COMMAND_PUBLICATION",
+  "cases": [
+    {
+      "input": {
+        "rear_axle_speed_mps": 1.0,
+        "yaw_rate_rps": 0.0
+      },
+      "result": {
+        "status": "ACCEPTED",
+        "reason": "CURVATURE_PRESERVED",
+        "scope": "SHADOW_IDEAL_ROLLING_CALCULATION_ONLY",
+        "runtime_authorized": false,
+        "physical_stop_verified": false,
+        "requested": {
+          "linear_x_mps": 1.0,
+          "yaw_rate_rps": 0.0
+        },
+        "scale_factor": 1.0,
+        "curvature_inv_m": 0.0,
+        "virtual_angle_rad": 0.0,
+        "joint_targets_rad": {
+          "left": 0.0,
+          "right": 0.0
+        },
+        "model_sha256": "90be9aab8a892d2cc3256d8c74fd81ac8b61c351375e854426ef11feb87e49b0",
+        "input_reference": "REAR_AXLE_BICYCLE_LONGITUDINAL_SPEED",
+        "slew_rates_and_physical_dynamics_verified": false,
+        "rear_right_lateral_offset_m": -1.299,
+        "plugin_linear_semantics": "RIGHT_REAR_JOINT_ROLLING_SPEED_TARGET",
+        "reference_frame_validated": false,
+        "rolling_and_joint_sign_validated": false,
+        "candidate": {
+          "rear_axle_speed_mps": 1.0,
+          "yaw_rate_rps": 0.0,
+          "plugin_linear_x_mps": 1.0,
+          "plugin_angular_z_rad": 0.0
+        },
+        "right_wheel_cap_scale_factor": 1.0
+      }
+    },
+    {
+      "input": {
+        "rear_axle_speed_mps": 1.0,
+        "yaw_rate_rps": 0.07633587786259542
+      },
+      "result": {
+        "status": "ACCEPTED",
+        "reason": "CURVATURE_PRESERVED",
+        "scope": "SHADOW_IDEAL_ROLLING_CALCULATION_ONLY",
+        "runtime_authorized": false,
+        "physical_stop_verified": false,
+        "requested": {
+          "linear_x_mps": 1.0,
+          "yaw_rate_rps": 0.07633587786259542
+        },
+        "scale_factor": 1.0,
+        "curvature_inv_m": 0.07633587786259542,
+        "virtual_angle_rad": 0.4797896546711007,
+        "joint_targets_rad": {
+          "left": 0.5238036657054492,
+          "right": 0.442141221121954
+        },
+        "model_sha256": "90be9aab8a892d2cc3256d8c74fd81ac8b61c351375e854426ef11feb87e49b0",
+        "input_reference": "REAR_AXLE_BICYCLE_LONGITUDINAL_SPEED",
+        "slew_rates_and_physical_dynamics_verified": false,
+        "rear_right_lateral_offset_m": -1.299,
+        "plugin_linear_semantics": "RIGHT_REAR_JOINT_ROLLING_SPEED_TARGET",
+        "reference_frame_validated": false,
+        "rolling_and_joint_sign_validated": false,
+        "candidate": {
+          "rear_axle_speed_mps": 1.0,
+          "yaw_rate_rps": 0.07633587786259542,
+          "plugin_linear_x_mps": 1.0991603053435115,
+          "plugin_angular_z_rad": 0.4797896546711007
+        },
+        "right_wheel_cap_scale_factor": 1.0
+      }
+    },
+    {
+      "input": {
+        "rear_axle_speed_mps": 1.0,
+        "yaw_rate_rps": -0.07633587786259542
+      },
+      "result": {
+        "status": "ACCEPTED",
+        "reason": "CURVATURE_PRESERVED",
+        "scope": "SHADOW_IDEAL_ROLLING_CALCULATION_ONLY",
+        "runtime_authorized": false,
+        "physical_stop_verified": false,
+        "requested": {
+          "linear_x_mps": 1.0,
+          "yaw_rate_rps": -0.07633587786259542
+        },
+        "scale_factor": 1.0,
+        "curvature_inv_m": -0.07633587786259542,
+        "virtual_angle_rad": -0.4797896546711007,
+        "joint_targets_rad": {
+          "left": -0.442141221121954,
+          "right": -0.5238036657054492
+        },
+        "model_sha256": "90be9aab8a892d2cc3256d8c74fd81ac8b61c351375e854426ef11feb87e49b0",
+        "input_reference": "REAR_AXLE_BICYCLE_LONGITUDINAL_SPEED",
+        "slew_rates_and_physical_dynamics_verified": false,
+        "rear_right_lateral_offset_m": -1.299,
+        "plugin_linear_semantics": "RIGHT_REAR_JOINT_ROLLING_SPEED_TARGET",
+        "reference_frame_validated": false,
+        "rolling_and_joint_sign_validated": false,
+        "candidate": {
+          "rear_axle_speed_mps": 1.0,
+          "yaw_rate_rps": -0.07633587786259542,
+          "plugin_linear_x_mps": 0.9008396946564885,
+          "plugin_angular_z_rad": -0.4797896546711007
+        },
+        "right_wheel_cap_scale_factor": 1.0
+      }
+    },
+    {
+      "input": {
+        "rear_axle_speed_mps": 0.0,
+        "yaw_rate_rps": 0.0
+      },
+      "result": {
+        "status": "STOP",
+        "reason": "ZERO_OR_STOP_BAND",
+        "scope": "SHADOW_IDEAL_ROLLING_CALCULATION_ONLY",
+        "runtime_authorized": false,
+        "physical_stop_verified": false,
+        "requested": {
+          "linear_x_mps": 0.0,
+          "yaw_rate_rps": 0.0
+        },
+        "rear_right_lateral_offset_m": -1.299,
+        "plugin_linear_semantics": "RIGHT_REAR_JOINT_ROLLING_SPEED_TARGET",
+        "reference_frame_validated": false,
+        "rolling_and_joint_sign_validated": false,
+        "candidate": {
+          "rear_axle_speed_mps": 0.0,
+          "yaw_rate_rps": 0.0,
+          "plugin_linear_x_mps": 0.0,
+          "plugin_angular_z_rad": 0.0
+        }
+      }
+    },
+    {
+      "input": {
+        "rear_axle_speed_mps": 0.0,
+        "yaw_rate_rps": 0.1
+      },
+      "result": {
+        "status": "REJECTED",
+        "reason": "UNREALIZABLE_NEAR_ZERO_YAW",
+        "scope": "SHADOW_IDEAL_ROLLING_CALCULATION_ONLY",
+        "runtime_authorized": false,
+        "physical_stop_verified": false,
+        "requested": {
+          "linear_x_mps": 0.0,
+          "yaw_rate_rps": 0.1
+        },
+        "rear_right_lateral_offset_m": -1.299,
+        "plugin_linear_semantics": "RIGHT_REAR_JOINT_ROLLING_SPEED_TARGET",
+        "reference_frame_validated": false,
+        "rolling_and_joint_sign_validated": false,
+        "candidate": {
+          "rear_axle_speed_mps": 0.0,
+          "yaw_rate_rps": 0.0,
+          "plugin_linear_x_mps": 0.0,
+          "plugin_angular_z_rad": 0.0
+        }
+      }
+    },
+    {
+      "input": {
+        "rear_axle_speed_mps": -1.0,
+        "yaw_rate_rps": 0.0
+      },
+      "result": {
+        "status": "REJECTED",
+        "reason": "REVERSE_DISABLED",
+        "scope": "SHADOW_IDEAL_ROLLING_CALCULATION_ONLY",
+        "runtime_authorized": false,
+        "physical_stop_verified": false,
+        "requested": {
+          "linear_x_mps": -1.0,
+          "yaw_rate_rps": 0.0
+        },
+        "rear_right_lateral_offset_m": -1.299,
+        "plugin_linear_semantics": "RIGHT_REAR_JOINT_ROLLING_SPEED_TARGET",
+        "reference_frame_validated": false,
+        "rolling_and_joint_sign_validated": false,
+        "candidate": {
+          "rear_axle_speed_mps": 0.0,
+          "yaw_rate_rps": 0.0,
+          "plugin_linear_x_mps": 0.0,
+          "plugin_angular_z_rad": 0.0
+        }
+      }
+    },
+    {
+      "input": {
+        "rear_axle_speed_mps": 1.0,
+        "yaw_rate_rps": 0.08620689655172414
+      },
+      "result": {
+        "status": "REJECTED",
+        "reason": "CURVATURE_EXCEEDS_STATIC_JOINT_ENVELOPE",
+        "scope": "SHADOW_IDEAL_ROLLING_CALCULATION_ONLY",
+        "runtime_authorized": false,
+        "physical_stop_verified": false,
+        "requested": {
+          "linear_x_mps": 1.0,
+          "yaw_rate_rps": 0.08620689655172414
+        },
+        "requested_curvature_inv_m": 0.08620689655172414,
+        "virtual_angle_rad": 0.5312737488497491,
+        "virtual_bound_rad": 0.4797896546711007,
+        "rear_right_lateral_offset_m": -1.299,
+        "plugin_linear_semantics": "RIGHT_REAR_JOINT_ROLLING_SPEED_TARGET",
+        "reference_frame_validated": false,
+        "rolling_and_joint_sign_validated": false,
+        "candidate": {
+          "rear_axle_speed_mps": 0.0,
+          "yaw_rate_rps": 0.0,
+          "plugin_linear_x_mps": 0.0,
+          "plugin_angular_z_rad": 0.0
+        }
+      }
+    },
+    {
+      "input": {
+        "rear_axle_speed_mps": 6.0,
+        "yaw_rate_rps": 0.0
+      },
+      "result": {
+        "status": "REJECTED",
+        "reason": "SPEED_OR_YAW_LIMIT",
+        "scope": "SHADOW_IDEAL_ROLLING_CALCULATION_ONLY",
+        "runtime_authorized": false,
+        "physical_stop_verified": false,
+        "requested": {
+          "linear_x_mps": 6.0,
+          "yaw_rate_rps": 0.0
+        },
+        "rear_right_lateral_offset_m": -1.299,
+        "plugin_linear_semantics": "RIGHT_REAR_JOINT_ROLLING_SPEED_TARGET",
+        "reference_frame_validated": false,
+        "rolling_and_joint_sign_validated": false,
+        "candidate": {
+          "rear_axle_speed_mps": 0.0,
+          "yaw_rate_rps": 0.0,
+          "plugin_linear_x_mps": 0.0,
+          "plugin_angular_z_rad": 0.0
+        }
+      }
+    }
+  ]
+}

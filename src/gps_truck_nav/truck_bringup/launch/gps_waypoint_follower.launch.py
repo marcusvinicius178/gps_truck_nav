@@ -43,6 +43,7 @@ def generate_launch_description():
         # This public launch selection is not a historical benchmark run definition.
         DeclareLaunchArgument('world', default_value=os.path.join(bringup_dir, 'worlds', 'ctvi.world')),
         DeclareLaunchArgument('params_file', default_value=os.path.join(bringup_dir, 'params', 'truck_nav2_params.yaml')),
+        DeclareLaunchArgument('robot_description_file', default_value=os.path.join(bringup_dir, 'urdf', 'arocs_truck.urdf')),
         DeclareLaunchArgument('localization_params_file', default_value=os.path.join(bringup_dir, 'params', 'dual_ekf_navsat_params.yaml')),
         DeclareLaunchArgument('use_gzclient', default_value='true'),
         DeclareLaunchArgument('use_rviz', default_value='true'),
@@ -81,6 +82,7 @@ def generate_launch_description():
         SetEnvironmentVariable('QT_QPA_PLATFORM', 'xcb', condition=IfCondition(lc('use_xcb'))),
         include('truck_simulation_launch.py', {
             'world': lc('world'), 'use_sim_time': lc('use_sim_time'),
+            'robot_description_file': lc('robot_description_file'),
             'use_gzclient': lc('use_gzclient'), 'use_rviz': 'false',
         }),
         Node(

@@ -218,14 +218,17 @@ def start(repo, build_dir, probe_dir, output, duration, *, sleep=time.sleep, mon
                 or (build_dir / 'image_id.txt').read_text().strip() != image):
             raise phase.PhaseError('Source/image must match both the validated build and completed probe')
         phase.readiness_result(probe_dir)
+        selected_profile = probe.get('navigation_profile', 'canonical')
+        phase.navigation_arguments(selected_profile)  # Refuse unknown profile before creating a container.
         state.update(source=source, image_id=image, build_directory=str(build_dir), probe_directory=str(probe_dir),
+                     navigation_profile=selected_profile,
                      build_status_sha256=phase.file_hash(build_dir / 'status.json'),
                      probe_status_sha256=phase.file_hash(probe_dir / 'status.json'))
         phase.save_json(output / 'source_manifest.json', source)
         phase.save_json(output / 'image_inspect.json', phase.image_inspection(runner, docker, image, 'image_inspect'))
         phase.save_json(output / 'status.json', state)
         command = (docker + phase.container_options(output, state['run_id'], 'visual')
-                   + ['--label', 'nav2.phase_a.role=visual_observation', '--env', 'NAV2_PHASE_A_PROFILE=canonical',
+                   + ['--label', 'nav2.phase_a.role=visual_observation', '--env', 'NAV2_PHASE_A_PROFILE=' + selected_profile,
                       image, 'python3', '/opt/auto_tuning/tools/visual_observer_session.py', '--duration', str(duration)])
         runner.run('visual_create', command, capture=False)
         cid = phase.owned_id(output / 'container.id')
