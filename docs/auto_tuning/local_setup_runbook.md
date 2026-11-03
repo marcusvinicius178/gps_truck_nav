@@ -1,6 +1,6 @@
 # Preparação local — ipt-sim-01, continuação da Fase A
 
-**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT YET VERIFIED.** O ZIP do commit `b8922ae` comprova `IMAGE_VALIDATED` e coleta do bringup, mas os dumps reprovam a configuração efetiva das costmaps e a ativação integral do Nav2. Para a revisão independente atual, seguir a **seção 2.2**. Ela reconstrói a imagem corrigida e repete somente o probe, sem missão. As seções anteriores ficam como histórico operacional de preparação.
+**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT_YET_VERIFIED.** O ZIP do commit `978ab23` confirma costmaps corretas, duas BTs Ackermann e sete lifecycle nodes ACTIVE; esses reparos permanecem preservados. A coleta terminou COMPLETE, mas o diagnóstico BLOCKED e `mission_ready=false`. Para a segunda revisão independente, seguir a **seção 2.3**: nova imagem com variante isolada TF/sensores e novo probe, sem movimento. As seções anteriores ficam como histórico operacional.
 
 ## 1. Ambiente confirmado e isolamento
 
@@ -182,6 +182,105 @@ PY
 
 Encaminhar esse ZIP ao revisor independente. Não iniciar missão após o probe, mesmo se todos os lifecycle nodes ficarem ACTIVE. As tentativas anteriores em `build` e `smoke-retry.N5Na75vV` permanecem intactas; a revisão atual usa somente o novo diretório `bringup-review.*`. Não editar manifests antigos, não remover containers/imagens e não fazer merge da PR #2.
 
+### 2.3. Segunda revisão: TF, sensores e evidência dos plugins
+
+Ler `second_independent_review.md`, `localization_covariance_policy.md`, `ackermann_interface_contract.md` e `plugin_parameter_observability.md`. O SDF prospectivo completo tem exatamente três mudanças: desabilita `publish_wheel_tf` e define os frames GPS/IMU. O mundo prospectivo muda apenas a URI desse modelo. O modelo/URDF/YAML históricos, datum, geometria, covariâncias, BTs e launches permanecem iguais. Não há conversor de atuação conectado.
+
+**Host:** ipt-sim-01. **Diretório inicial:** qualquer diretório do terminal desse host. Os comandos usam o checkout dedicado já confirmado nas evidências; exigem que esteja limpo e preservam todas as tentativas anteriores. Executar o bloco inteiro. Ele cria uma nova pasta exclusiva e grava o commit efetivamente selecionado; a resposta de entrega também fornece o SHA fixo para esta revisão.
+
+```bash
+task_root="$HOME/nav2-phase-a-ipt-sim-01.pMbd0n06"
+review2_root=$(mktemp -d "$task_root/second-review.XXXXXXXX")
+printf 'Evidências desta revisão: %s\n' "$review2_root"
+(
+  set -euo pipefail
+  test -n "$review2_root"
+  test -d "$review2_root"
+  cd "$task_root/gps_truck_nav"
+  test -z "$(git status --porcelain --untracked-files=all)"
+  git fetch origin engineering/2026-10-preflight-gates \
+    2>&1 | tee "$review2_root/git_fetch.log"
+  GIT_LFS_SKIP_SMUDGE=1 git checkout --detach FETCH_HEAD
+  test -f config/auto_tuning/tf_sensor_model_variant.json
+  git rev-parse HEAD > "$review2_root/checkout_commit.txt"
+  /usr/bin/python3 -I tools/auto_tuning/local_phase_a.py build \
+    --repo "$task_root/gps_truck_nav" \
+    --output-dir "$review2_root/build"
+)
+```
+
+O Docker pode reutilizar as camadas APT e colcon: seus inputs não foram alterados nesta revisão. A variante/configuração e os coletores são copiados depois dessas camadas; o observador C++ é recompilado na imagem. Reutilização depende do cache e do digest de base resolvido, ambos registrados. Não usar `--no-cache`, prune, remoção de imagens, reinstalação/reinício Docker ou `source` de ROS no host. O smoke agora verifica também o manifest e os assets instalados da variante. `gazebo_version` continua preservando 255 como evidência de identificação de versão, sem alegar execução funcional.
+
+**Somente após IMAGE_VALIDATED no build acima**, no mesmo terminal, executar o bloco completo abaixo. Ele confere explicitamente o status, não atualiza o checkout e usa a imagem pelo ID registrado:
+
+```bash
+(
+  set -euo pipefail
+  cd "$task_root/gps_truck_nav"
+  /usr/bin/python3 -I - "$review2_root/build/status.json" <<'PY'
+import json
+import sys
+status = json.load(open(sys.argv[1]))
+if status.get('status') != 'IMAGE_VALIDATED':
+    raise SystemExit('Build não está IMAGE_VALIDATED; preserve os logs e pare aqui.')
+PY
+  /usr/bin/python3 -I tools/auto_tuning/local_phase_a.py probe \
+    --repo "$task_root/gps_truck_nav" \
+    --build-dir "$review2_root/build" \
+    --output-dir "$review2_root/probe"
+)
+```
+
+O helper mantém `use_ackermann_bt:=true`, perfil de localização anterior e `publish_legacy_cloud_tf:=false`; seleciona explicitamente `world:=/opt/auto_tuning/config/worlds/ctvi_tf_sensors.world`. Registra um snapshot `bringup_before_probe.log` para evidência interna dos plugins e coleta apenas observações/consultas de leitura. A captura `/proc` é feita somente dentro do container próprio, sem acesso ao `/proc` do host. Os endpoints de `/cmd_vel` são consultados no grafo; nenhum Twist ou goal é enviado. Não há bag novo, missão, otimizador ou Virtual Lanes.
+
+| Evidência nova em `probe/runtime_probe/` | O que examinar |
+|---|---|
+| `tf_authority.json` schema 2 | Clock na mesma janela, timestamps/recepções por aresta e GID, QoS/perdas quando disponíveis, seis pais URDF e autoridade única. |
+| `plugin_parameters.json` | Tentativas Get/Describe, nomes/tipos/valores efetivos, deadlines, REQUIRED/optional, versões/lib/plugin XML e distinção DECLARED/EFFECTIVE/ACTUALLY_USED. |
+| `runtime_binary_identity.json` | Bibliotecas realmente mapeadas, executáveis, device/inode/hash e comparação com arquivos instalados; não prova equivalência fonte-binário. |
+| `localization_alignment.json` | Fix, odometria GPS e três TF no mesmo stamp inteiro, rotação 3D dos lever arms e residuais horizontais; ausência de amostra exata não vira latest. |
+| `ackermann_geometry.json` | Cálculo estático e conflitos de limites; `runtime_geometry_validated=false`, `motion_authorized=false`. |
+| `readiness_observations.json` e `readiness.json` | Evidência bruta, checks, captura COMPLETE/PARTIAL/FAILED e diagnóstico separado da aprovação de missão. |
+
+Os dumps CLI anteriores continuam sendo coletados. Um dump vazio com exit zero não aprova os parâmetros. `plugin_parameters.required_collection_status=COMPLETE` indica captura Get/Describe de todos os obrigatórios; `collection_status=PARTIAL` pode resultar de opcionais não declarados ou de timeout, com causa explícita por tentativa. Nenhum desses campos comprova consumo algorítmico. Costmaps/BTs devem manter os resultados já confirmados. Covariâncias nulas/desconhecidas, fonte externa ausente, atuação e precisão geométrica continuam pendentes mesmo com frames/TF corrigidos.
+
+Para empacotar **somente esta nova tentativa**, inclusive falhas, sem sobrescrever ZIPs anteriores, executar:
+
+```bash
+/usr/bin/python3 -I - "$review2_root" <<'PY'
+from pathlib import Path
+import hashlib
+import json
+import sys
+import zipfile
+root = Path(sys.argv[1]).resolve(strict=True)
+archive = root / 'nav2_phase_a_second_review_evidence.zip'
+allowed = {'.json', '.jsonl', '.log', '.txt', '.tsv', '.yaml'}
+with zipfile.ZipFile(archive, 'x', zipfile.ZIP_DEFLATED) as output:
+    for name in ('checkout_commit.txt', 'git_fetch.log'):
+        path = root / name
+        if path.is_file() and not path.is_symlink():
+            output.write(path, path.relative_to(root))
+    for name in ('build', 'probe'):
+        directory = root / name
+        if not directory.is_dir() or directory.is_symlink():
+            continue
+        for path in sorted(directory.rglob('*')):
+            if (path.is_file() and not path.is_symlink()
+                    and path.resolve().is_relative_to(directory.resolve())
+                    and (path.suffix in allowed or path.name == 'container.id')):
+                output.write(path, path.relative_to(root))
+digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+with (root / 'archive_identity.json').open('x') as stream:
+    json.dump({'archive': archive.name, 'sha256': digest}, stream, indent=2)
+    stream.write('\n')
+print(archive)
+print('SHA-256:', digest)
+PY
+```
+
+Encaminhar o ZIP e o SHA-256 ao revisor independente. As pastas `build`, `smoke-retry.*` e `bringup-review.ZDIBJp1z` anteriores ficam intactas, assim como as imagens e containers parados. Se o cleanup desta tentativa for interrompido, usar o bloco completo da seção 4 com `stage_dir="$review2_root/probe"` (ou `build` para esse estágio), conferindo ID e labels. Não iniciar outra coleta com o mesmo output nem editar os manifests para reaproveitar imagem incompatível. A próxima decisão é do revisor; **OBSERVATIONS_COLLECTED não libera missão.**
+
 ## 3. Depois de IMAGE_VALIDATED: bringup headless diagnóstico
 
 **Diretório de trabalho:** o mesmo checkout novo. **Pré-requisitos:** `task_root` mantido no terminal, `build/status.json` aprovado pelo smoke check, imagem existente no daemon local e checkout intacto. Em outro terminal, recupere o caminho impresso na seção 2 e atribua-o a `task_root` antes de continuar; não escolha arbitrariamente um build antigo.
@@ -198,7 +297,7 @@ Esse estágio confere a imagem e a fonte, cria um container novo com limites e r
 
 A coleta tem timeouts e pode durar vários minutos. `tf2_echo` costuma atingir seu timeout após coletar amostras; é necessário ler o log, não interpretar esse exit code isoladamente como erro ou aprovação. O helper registra stdout/stderr do bringup, logs do Xvfb, inspect anterior/posterior e confirma parada `Running=false`, `Pid=0` do ID que criou. Containers próprios ficam parados para inspeção; não são removidos automaticamente.
 
-`OBSERVATIONS_COLLECTED` significa somente coleta e encerramento concluídos. O resumo atual também informa `diagnostic_status`, `readiness_collection_status` e `mission_ready=false`; interpretar conforme seção 2.2. Sensores, TF, lifecycle, parâmetros e estado dos processos precisam ser revisados; várias consultas podem ter falhado. Um processo de launch vivo não basta para provar que gzserver e componentes Nav2 continuaram vivos. Nenhum status desta etapa aprova Gate 0/1.
+`OBSERVATIONS_COLLECTED` significa somente coleta e encerramento concluídos. O resumo atual também informa `diagnostic_status`, `readiness_collection_status` e `mission_ready=false`; interpretar conforme seção 2.3. Sensores, TF, lifecycle, parâmetros e estado dos processos precisam ser revisados; várias consultas podem ter falhado. Um processo de launch vivo não basta para provar que gzserver e componentes Nav2 continuaram vivos. Nenhum status desta etapa aprova Gate 0/1.
 
 Se houver falta de RAM, erro de software rendering, OOM ou falha de imagem, preservar logs. Não alterar drivers NVIDIA, habilitar `--privileged`, usar rede do host ou reiniciar Docker. Uma eventual alternativa de renderização deve ser uma alteração explícita e revisada do ambiente.
 
@@ -292,6 +391,6 @@ O digest da base e os hashes de fonte são registrados; APT ainda é resolvido d
 
 A imagem exportada permite replay daquele runtime; não prova rebuild independente bit a bit. Não enviar esse TAR junto dos logs do diagnóstico.
 
-Mesmo se build e bringup funcionarem, permanecem abertos: interface yaw-rate do MPPI versus esterçamento do Ackermann upstream; TF/localização e frames/lever arms de GPS/IMU; BT/Spin e costmaps; associação da missão pública às referências; velocidade efetiva e equivalente geométrico do evaluator. O perfil de localização é proposto, não validado. A próxima decisão depende da inspeção das evidências locais. **PR #2 permanece draft, sem merge; missão, Gates 0/1, otimização e campanha experimental não foram autorizados por um smoke check.**
+Costmaps e BTs foram confirmadas no commit 978ab23 e continuam protegidas por regressões. Permanecem abertos: interface yaw-rate/esterçamento e limites físicos; validação runtime da variante TF/frames; precisão e tempo interno de localização, covariâncias e lever arms; produtor externo de obstáculos; consumo efetivo dos knobs de otimização; associação da missão pública às referências; velocidade efetiva e equivalente geométrico do evaluator. A próxima decisão depende da revisão das novas evidências locais. **PR #2 permanece draft, sem merge; missão, Gates 0/1, otimização e campanha experimental não foram autorizados por um smoke check.**
 
 Fontes de operação consultadas: [rede none](https://docs.docker.com/engine/network/drivers/none/), [limites de runtime](https://docs.docker.com/engine/containers/resource_constraints/), [builders](https://docs.docker.com/build/builders/), [storage containerd](https://docs.docker.com/engine/storage/containerd/), [Mesa software](https://docs.mesa3d.org/envvars.html), [xvfb-run Jammy](https://manpages.ubuntu.com/manpages/jammy/man1/xvfb-run.1.html).

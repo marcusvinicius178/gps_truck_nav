@@ -314,6 +314,7 @@ def probe(repo, build_dir, output, runner, docker, status, *, warmup_seconds=10,
                "ros2", "launch", "truck_bringup", "gps_waypoint_follower.launch.py",
                "use_gzclient:=false", "use_rviz:=false", "use_mapviz:=false", "use_gpu:=false",
                "use_xcb:=false", "publish_legacy_cloud_tf:=false", "use_ackermann_bt:=true",
+               "world:=/opt/auto_tuning/config/worlds/ctvi_tf_sensors.world",
                "localization_params_file:=/opt/auto_tuning/config/dual_ekf_navsat_gate0.yaml"]
     try:
         runner.run("headless_create", docker + container_options(output, run_id, "headless") + command, capture=False)
@@ -326,6 +327,7 @@ def probe(repo, build_dir, output, runner, docker, status, *, warmup_seconds=10,
             state = inspect_container(runner, docker, cid, f"warmup_{index + 1:02d}")
             if state.get("State", {}).get("Running") is not True:
                 raise PhaseError("Bringup container exited during diagnostic warmup")
+        runner.run("bringup_before_probe", docker + ["logs", cid], timeout=30, capture=False)
         runner.run("runtime_probe", docker + ["exec", cid, "/entrypoint.sh", "bash",
                    "/opt/auto_tuning/tools/collect_runtime_evidence.sh", "/evidence/runtime_probe"], timeout=900, capture=False)
         state = inspect_container(runner, docker, cid, "headless_after_probe")

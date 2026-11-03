@@ -16,6 +16,7 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'tools/auto_tuning'))
 SPEC = importlib.util.spec_from_file_location('readiness_contract', ROOT / 'tools/auto_tuning/readiness_contract.py')
 contract = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(contract)
@@ -37,8 +38,14 @@ def fixture():
         'observation_window_end_wall_offset': 30.5,
         'clock': {'count': 100, 'first': 1.0, 'last': 10.0, 'forward_steps': 99, 'backward_steps': 0,
                   'last_received_wall_offset': 30.49, 'last_advance_wall_offset': 30.49},
-        'topics': {}, 'tf_authority': {'observation_complete': True, 'edges': [],
-                                     'publishers': [{'topic': '/tf', 'gid': 'a' * 32, 'node_name': 'fixture_authority'}]},
+        'topics': {}, 'tf_authority': {'schema_version': 2, 'observation_complete': True, 'edges': [],
+                                     'clock_reference': 'OBSERVER_LOCAL_CLOCK_SAME_WINDOW',
+                                     'observation_window_end_wall_offset': 30.5,
+                                     'clock': {'count': 100, 'forward_steps': 99, 'backward_steps': 0,
+                                               'first_stamp': {'sec': 1, 'nanosec': 0},
+                                               'last_stamp': {'sec': 10, 'nanosec': 0},
+                                               'last_received_wall_offset': 30.49, 'last_advance_wall_offset': 30.49},
+                                     'publishers': [{'topic': '/tf', 'gid': 'a' * 32, 'node_name': 'ackermann_drive'}]},
         'transforms': {key: {'status': 'OK', 'stamp': 9.9, 'translation': {'x': 0.0, 'y': 0.0, 'z': 0.0}, 'rotation': Q.copy()}
                        for key in ('map->base_footprint', 'odom->base_footprint', 'base_footprint->base_link',
                                    'base_footprint->gps_link', 'base_footprint->imu_link', 'map->gps_link')},
@@ -67,6 +74,11 @@ def fixture():
             'first_stamp': {'sec': 1, 'nanosec': 0},
             'last_stamp': {'sec': 9, 'nanosec': 900000000},
             'last_transform': {'translation': {'x': 0.0, 'y': 0.0, 'z': 0.0}, 'rotation': Q.copy()}})
+        edge = observed['tf_authority']['edges'][-1]
+        edge['publisher_observations'] = [{'gid': 'a' * 32, 'timing': {
+            'count': 50, 'forward_steps': 49, 'backward_steps': 0,
+            'first_stamp': edge['first_stamp'], 'last_stamp': edge['last_stamp'],
+            'last_received_wall_offset': 30.4}}]
     return observed
 
 
@@ -111,7 +123,9 @@ class ReadinessTests(unittest.TestCase):
         for node in ('/global_costmap/global_costmap', '/local_costmap/local_costmap'):
             self.assertEqual(self.check('parameters:' + node)['status'], 'PASS')
         result = self.report()
-        self.assertEqual(result['diagnostic_status'], 'REVIEW_REQUIRED')
+        self.assertEqual(result['diagnostic_status'], 'INCOMPLETE')
+        # This legacy fixture lacks the new binary/plugin/alignment evidence;
+        # matching costmaps alone cannot imply diagnostic completeness.
         self.assertFalse(result['mission_ready'])
         self.assertEqual(result['gate0'], 'NOT_YET_VERIFIED')
         self.assertEqual(result['gate1'], 'NOT_YET_VERIFIED')
@@ -170,6 +184,7 @@ class ReadinessTests(unittest.TestCase):
         # Simulated timestamps remain mutually close, but reception stopped early
         # in a 30 s wall window; historical progress must not pass this check.
         self.observed['clock'].update(last_received_wall_offset=2.0, last_advance_wall_offset=2.0)
+        self.observed['tf_authority']['clock'].update(last_received_wall_offset=2.0, last_advance_wall_offset=2.0)
         self.assertEqual(self.check('clock_advancing')['status'], 'FAIL')
         for topic in contract.REQUIRED_TOPICS:
             self.assertEqual(self.check('freshness:' + topic)['status'], 'FAIL')
@@ -232,9 +247,9 @@ class ReadinessTests(unittest.TestCase):
 
     def test_required_dynamic_edge_stamps_and_quaternions_are_validated(self):
         edge = self.observed['tf_authority']['edges'][0]
-        edge['last_stamp'] = {'sec': 0, 'nanosec': 0}
+        edge['publisher_observations'][0]['timing']['last_stamp'] = {'sec': 0, 'nanosec': 0}
         self.assertEqual(self.check('required_tf_numeric_and_fresh')['status'], 'FAIL')
-        edge['last_stamp'] = {'sec': 9, 'nanosec': 900000000}
+        edge['publisher_observations'][0]['timing']['last_stamp'] = {'sec': 9, 'nanosec': 900000000}
         edge['last_transform']['rotation']['w'] = 0.0
         self.assertEqual(self.check('required_tf_numeric_and_fresh')['status'], 'FAIL')
 
@@ -242,7 +257,7 @@ class ReadinessTests(unittest.TestCase):
         for update in ({'count': 1}, {'first_stamp': {'sec': 9, 'nanosec': 900000000}}):
             with self.subTest(update=update):
                 self.observed = fixture()
-                self.observed['tf_authority']['edges'][0].update(update)
+                self.observed['tf_authority']['edges'][0]['publisher_observations'][0]['timing'].update(update)
                 self.assertEqual(self.check('required_tf_numeric_and_fresh')['status'], 'FAIL')
 
     def test_real_sensor_frame_and_zero_covariance_findings_require_review(self):

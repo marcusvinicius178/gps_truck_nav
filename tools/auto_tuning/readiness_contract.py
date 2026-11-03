@@ -3,12 +3,16 @@
 import ast
 import math
 
+from tf_timing_contract import assess_tf_timing
+from plugin_parameter_contract import assess_plugin_parameters
+from variant_runtime_contract import assess_variant_runtime
+
 
 LIFECYCLE_NODES = ('bt_navigator', 'planner_server', 'controller_server', 'behavior_server',
                    'smoother_server', 'velocity_smoother', 'waypoint_follower',
                    'global_costmap/global_costmap', 'local_costmap/local_costmap')
 REQUIRED_TOPICS = ('/gps/fix', '/imu', '/odom', '/odometry/local', '/odometry/global',
-                   '/odometry/gps', '/sick_scan_2D')
+                   '/odometry/gps', '/sick_scan_2D', '/joint_states')
 BT_PATHS = {
     'default_nav_to_pose_bt_xml': '/opt/auto_tuning/config/behavior_trees/ackermann_navigate_to_pose.xml',
     'default_nav_through_poses_bt_xml': '/opt/auto_tuning/config/behavior_trees/ackermann_navigate_through_poses.xml',
@@ -146,7 +150,9 @@ def assess(observed, expected):
         actual = record.get('values', {})
         differences = {key: {'expected': value, 'actual': actual.get(key)}
                        for key, value in wanted.items() if not equivalent(key, value, actual.get(key))}
-        add('parameters:' + node, 'FAIL' if differences else 'PASS', differences=differences)
+        add('parameters:' + node, 'FAIL' if differences else 'PASS', differences=differences,
+            scope='Clock only; full plugin values are assessed under plugin_parameters.'
+            if node in ('/planner_server', '/controller_server') else 'Selected effective runtime contract.')
     for name in LIFECYCLE_NODES:
         record = observed.get('lifecycle', {}).get('/' + name, {})
         status = 'UNKNOWN' if record.get('status') != 'OK' else 'PASS' if record.get('id') == 3 else 'FAIL'
@@ -235,30 +241,7 @@ def assess(observed, expected):
         duplicate_pairs=duplicate_pairs, missing_required_edges=missing,
         unknown_gid_edges=len(unknown), unmapped_publisher_gids=unmapped, nonfinite_edges=len(nonfinite),
         scope='Observed time window only; topic publisher count alone is not an authority check.')
-    required_pairs = {('map', 'odom'), ('odom', 'base_footprint'), ('base_footprint', 'base_link')}
-    invalid_edges = []
-    for edge in edges:
-        pair = (edge.get('parent'), edge.get('child'))
-        if pair not in required_pairs:
-            continue
-        transform = edge.get('last_transform', {})
-        q = transform.get('rotation', {})
-        valid = all(finite(transform.get('translation', {}).get(axis)) for axis in ('x', 'y', 'z'))
-        valid = valid and all(finite(q.get(axis)) for axis in ('x', 'y', 'z', 'w'))
-        valid = valid and abs(math.sqrt(sum(q[axis] ** 2 for axis in ('x', 'y', 'z', 'w'))) - 1) <= 1e-3
-        age = None
-        if pair != ('base_footprint', 'base_link'):
-            timestamp = stamp_seconds(edge.get('last_stamp'))
-            first_timestamp = stamp_seconds(edge.get('first_stamp'))
-            count = edge.get('count', 0)
-            progressing = (isinstance(count, int) and not isinstance(count, bool) and count >= 2
-                           and finite(first_timestamp) and finite(timestamp) and timestamp > first_timestamp)
-            age = clock['last'] - timestamp if finite(clock.get('last')) and finite(timestamp) else None
-            valid = valid and advanced and progressing and edge.get('topic') == '/tf' and age is not None and -POLICY['maximum_future_sim_seconds'] <= age <= POLICY['maximum_age_sim_seconds']
-        if not valid:
-            invalid_edges.append({'parent': pair[0], 'child': pair[1], 'age_sim_seconds': age})
-    add('required_tf_numeric_and_fresh', 'UNKNOWN' if missing else 'FAIL' if invalid_edges else 'PASS',
-        invalid_edges=invalid_edges, note='Zero stamps on static base transforms are valid; dynamic navigation edges must advance with simulation time.')
+    checks.append(assess_tf_timing(authority, POLICY))
     for key in ('map->base_footprint', 'odom->base_footprint', 'base_footprint->base_link',
                 'base_footprint->gps_link', 'base_footprint->imu_link', 'map->gps_link'):
         record = observed.get('transforms', {}).get(key, {})
@@ -292,6 +275,8 @@ def assess(observed, expected):
         reason='Review lever arms, datum and map/GNSS/odometry deltas; no geometry or covariance has been retuned.')
     add('ackermann_command_interface', 'BLOCKED_REVIEW',
         reason='MPPI yaw rate versus Gazebo steering semantics must be resolved and validated before movement.')
+    checks.extend(assess_plugin_parameters(observed.get('plugin_parameters', {}))['checks'])
+    checks.extend(assess_variant_runtime(observed, advanced, POLICY))
     statuses = {entry['status'] for entry in checks}
     return {'schema_version': 1, 'collection_status': observed.get('collection_status', 'INCOMPLETE'),
             'diagnostic_status': 'BLOCKED' if 'FAIL' in statuses else

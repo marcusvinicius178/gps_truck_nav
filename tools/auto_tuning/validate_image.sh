@@ -163,6 +163,15 @@ with tempfile.TemporaryDirectory(prefix='nav2-image-smoke-', dir='/tmp') as temp
         add('launch_argument_' + name, launch['passed'] and name in arguments)
     command('launch_parameter_transport',
             ['python3', '/opt/auto_tuning/tools/verify_parameter_transport.py'], timeout=30)
+    if 'truck_bringup' in prefixes:
+        command('prospective_model_contract',
+                ['python3', '/opt/auto_tuning/tools/validate_model_variant.py',
+                 '--installed-share', str(prefixes['truck_bringup'] / 'share/truck_bringup'),
+                 '--config', '/opt/auto_tuning/config'], timeout=30)
+    else:
+        add('prospective_model_contract', False, reason='truck_bringup prefix unavailable')
+    add('prospective_model_search_path', '/opt/auto_tuning/config/models' in
+        os.environ.get('GAZEBO_MODEL_PATH', '').split(os.pathsep))
     observer = Path('/opt/auto_tuning/bin/tf_authority_probe')
     add('tf_authority_probe_executable', observer.is_file() and os.access(observer, os.X_OK),
         path=str(observer))

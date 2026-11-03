@@ -2,6 +2,7 @@
 """Bounded, read-only ROS observations for Phase A. Never sends motion or goals."""
 
 import argparse
+from collections import deque
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -14,6 +15,11 @@ import time
 import yaml
 
 from readiness_contract import LIFECYCLE_NODES, assess, costmap_bounds, expected_parameters
+from localization_alignment import analyze_alignment
+from parameter_probe import PluginParameterProbe
+from plugin_parameter_contract import installed_plugin_provenance, parse_configuration_logs, assess_plugin_parameters
+from runtime_binary_identity import inspect_runtime_binaries
+from audit_ackermann_geometry import audit_model
 
 
 def stamp(value):
@@ -52,6 +58,18 @@ def write_new(path, value):
         stream.write('\n')
 
 
+def finish_plugin_capture(observed, plugin_probe, histories):
+    """Retain partial readbacks even when another observer or ROS callback fails."""
+    observed['localization_sample_history'] = {name: list(samples) for name, samples in histories.items()}
+    try:
+        observed['plugin_parameters'] = plugin_probe.finish()
+    except Exception as error:
+        observed['plugin_parameters'] = plugin_probe.report
+        observed['plugin_parameters']['finalization_error'] = f'{type(error).__name__}: {error}'
+        observed['plugin_parameters']['collection_status'] = 'PARTIAL'
+        observed['collection_status'] = 'FAILED'
+
+
 def collect(output, duration, observed, expected):
     import rclpy
     from ament_index_python.packages import get_package_prefix, get_package_share_directory
@@ -59,17 +77,19 @@ def collect(output, duration, observed, expected):
     from nav_msgs.msg import OccupancyGrid, Odometry
     from rcl_interfaces.srv import GetParameters
     from rclpy.parameter import Parameter, parameter_value_to_python
+    from rclpy.clock import ClockType
     from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, qos_profile_sensor_data
     from rclpy.time import Time
     from robot_localization.srv import FromLL
     from rosgraph_msgs.msg import Clock
-    from sensor_msgs.msg import Imu, LaserScan, NavSatFix
+    from sensor_msgs.msg import Imu, JointState, LaserScan, NavSatFix, PointCloud2
     from tf2_ros import Buffer, TransformListener
 
     share = Path(get_package_share_directory('truck_bringup'))
     canonical = share / 'params/truck_nav2_params.yaml'
     localization = Path('/opt/auto_tuning/config/dual_ekf_navsat_gate0.yaml')
-    expected.update(expected_parameters(yaml.safe_load(canonical.read_text())))
+    canonical_config = yaml.safe_load(canonical.read_text())
+    expected.update(expected_parameters(canonical_config))
     localization_config = yaml.safe_load(localization.read_text())
     datum = localization_config['navsat_transform']['ros__parameters']['datum']
     for name, keys in {
@@ -94,12 +114,28 @@ def collect(output, duration, observed, expected):
     observed['ackermann_library'] = {'path': str(library), 'sha256': digest(library)}
     for path in (share / 'models/arocs_truck/model.sdf', share / 'urdf/arocs_truck.urdf'):
         observed['source_files'][str(path)] = digest(path)
+    profile = Path('/opt/auto_tuning/config/tf_sensor_model_variant.json')
+    observed['model_variant'] = json.loads(profile.read_text())
+    observed['source_files'][str(profile)] = digest(profile)
+    for relative in observed['model_variant']['variant_sha256']:
+        path = profile.parent / relative
+        observed['source_files'][str(path)] = digest(path)
+    observed['runtime_binary_identity'] = inspect_runtime_binaries()
+    observed['plugin_provenance'] = installed_plugin_provenance()
+    observed['plugin_provenance']['runtime_binary_identity'] = observed['runtime_binary_identity']
+    observed['ackermann_geometry'] = audit_model(
+        profile.parent / 'models/arocs_truck_tf_sensors/model.sdf',
+        canonical_config['planner_server']['ros__parameters']['GridBased']['minimum_turning_radius'])
+    observed['ackermann_geometry']['requested_radius_source'] = 'Canonical planner YAML; effective values are queried separately.'
 
     rclpy.init()
     node = rclpy.create_node('phase_a_readiness_' + str(os.getpid()),
                             parameter_overrides=[Parameter('use_sim_time', value=True)])
     buffer = Buffer()
     listener = TransformListener(buffer, node)
+    plugin_probe = PluginParameterProbe(node, canonical_config)
+    observed['plugin_parameters'] = plugin_probe.report
+    histories = {name: deque(maxlen=128) for name in ('/gps/fix', '/odometry/gps')}
     subscriptions = []
     jobs = []
     process = None
@@ -137,8 +173,22 @@ def collect(output, duration, observed, expected):
         elif kind == 'scan':
             finite_ranges = [value for value in message.ranges if math.isfinite(value)]
             result.update(range_count=len(message.ranges), finite_range_count=len(finite_ranges),
+                          nan_range_count=sum(math.isnan(value) for value in message.ranges),
+                          positive_infinite_range_count=sum(value == math.inf for value in message.ranges),
+                          invalid_range_count=sum(value == -math.inf or
+                              (math.isfinite(value) and not message.range_min <= value <= message.range_max)
+                              for value in message.ranges),
                           minimum_finite_range=min(finite_ranges) if finite_ranges else None,
                           range_min=message.range_min, range_max=message.range_max)
+        elif kind == 'joints':
+            result.update(names=list(message.name), positions=list(message.position),
+                          velocities=list(message.velocity), efforts=list(message.effort))
+        elif kind == 'cloud':
+            result.update(width=message.width, height=message.height, point_step=message.point_step,
+                          row_step=message.row_step, is_dense=message.is_dense,
+                          data_bytes=len(message.data),
+                          fields=[{'name': field.name, 'offset': field.offset,
+                                   'datatype': field.datatype, 'count': field.count} for field in message.fields])
         else:
             result.update(width=message.info.width, height=message.info.height, resolution=message.info.resolution,
                           origin_position=xyz(message.info.origin.position),
@@ -148,6 +198,7 @@ def collect(output, duration, observed, expected):
     def callback(topic, kind):
         def receive(message):
             value = stamp(message.header.stamp)
+            stamp_ns = message.header.stamp.sec * 1_000_000_000 + message.header.stamp.nanosec
             entry = observed['topics'].setdefault(topic, {'count': 0, 'forward_steps': 0, 'backward_steps': 0})
             if entry['count']:
                 entry['forward_steps'] += value > entry['last_stamp']
@@ -155,7 +206,11 @@ def collect(output, duration, observed, expected):
             else:
                 entry['first_stamp'] = value
             entry.update(count=entry['count'] + 1, last_stamp=value,
+                         last_stamp_ns=stamp_ns,
                          last_received_wall_offset=time.monotonic() - started, last=summarize(message, kind))
+            if topic in histories:
+                histories[topic].append({'stamp_ns': stamp_ns,
+                    'received_wall_offset': entry['last_received_wall_offset'], **entry['last']})
         return receive
 
     def queue(name, service_type, request, category, key, decode):
@@ -167,7 +222,9 @@ def collect(output, duration, observed, expected):
 
     try:
         subscriptions.append(node.create_subscription(Clock, '/clock', clock_callback, qos_profile_sensor_data))
-        descriptions = [(NavSatFix, '/gps/fix', 'gps'), (Imu, '/imu', 'imu'), (LaserScan, '/sick_scan_2D', 'scan')]
+        descriptions = [(NavSatFix, '/gps/fix', 'gps'), (Imu, '/imu', 'imu'),
+                        (LaserScan, '/sick_scan_2D', 'scan'), (JointState, '/joint_states', 'joints'),
+                        (PointCloud2, '/external_area_pointcloud', 'cloud')]
         descriptions += [(Odometry, name, 'odom') for name in ('/odom', '/odometry/local', '/odometry/global', '/odometry/gps')]
         descriptions += [(OccupancyGrid, '/' + name + '/costmap', 'costmap') for name in ('global_costmap', 'local_costmap')]
         for message_type, topic, kind in descriptions:
@@ -193,7 +250,9 @@ def collect(output, duration, observed, expected):
             request.ll_point.altitude = float(altitude)
             record = queue('/fromLL', FromLL, request, 'from_ll', key,
                            lambda response: {'map_point': xyz(response.map_point)})
-            record.update(input={'latitude': latitude, 'longitude': longitude, 'altitude': altitude}, **metadata)
+            record.update(input={'latitude': latitude, 'longitude': longitude, 'altitude': altitude},
+                          output_frame_id='map', output_frame_source='Configured global odometry/map frame',
+                          service_accepts_timestamp=False, **metadata)
         from_ll('datum', datum[0], datum[1], 0.0, datum_yaw_radians=datum[2])
         process_log = (output / 'tf_authority_process.log').open('x')
         try:
@@ -210,7 +269,9 @@ def collect(output, duration, observed, expected):
                 point = gps['last']
                 if all(math.isfinite(point[key]) for key in ('latitude', 'longitude', 'altitude')):
                     from_ll('live_gps', point['latitude'], point['longitude'], point['altitude'],
-                            input_sensor_stamp=gps['last_stamp'], input_frame_id=point['frame_id'])
+                            input_sensor_stamp=gps['last_stamp'], input_sensor_stamp_ns=gps['last_stamp_ns'],
+                            input_received_wall_offset=gps['last_received_wall_offset'], input_frame_id=point['frame_id'])
+            plugin_probe.poll()
             for job in jobs:
                 record = job['record']
                 if record['status'] != 'PENDING':
@@ -218,11 +279,16 @@ def collect(output, duration, observed, expected):
                 try:
                     if job['future'] is None and job['client'].service_is_ready():
                         job['future'] = job['client'].call_async(job['request'])
+                        record['request_sent_wall_offset'] = time.monotonic() - started
                     if job['future'] is not None and job['future'].done():
-                        record.update(job['decode'](job['future'].result()), status='OK')
+                        record.update(job['decode'](job['future'].result()), status='OK',
+                                      response_received_wall_offset=time.monotonic() - started)
                 except Exception as error:
                     record.update(status='ERROR', error=str(error))
             rclpy.spin_once(node, timeout_sec=0.05)
+        # Close the RPC window before waiting for the independent C++ observer.
+        # A late reply must not become valid merely because process.wait delayed us.
+        observed['plugin_parameters'] = plugin_probe.finish()
         if process is not None:
             try:
                 returncode = process.wait(timeout=5)
@@ -239,13 +305,13 @@ def collect(output, duration, observed, expected):
                 observed['tf_authority'] = json.loads((output / 'tf_authority.json').read_text())
             if returncode != 0:
                 observed['tf_authority']['observation_complete'] = False
-        # The C++ window can finish slightly after the Python window. Refresh
-        # /clock and buffered samples before comparing its final TF timestamps.
+        # Refresh Python sensor/TF snapshots only. TF freshness uses exclusively
+        # the C++ observer's own clock; parameter RPCs are already closed.
         refresh_deadline = time.monotonic() + 0.5
         while time.monotonic() < refresh_deadline:
             rclpy.spin_once(node, timeout_sec=0.05)
         observed['observation_window_end_wall_offset'] = time.monotonic() - started
-        observed['clock_reference'] = 'Refreshed after the TF authority observation window.'
+        observed['clock_reference'] = 'Python sensor snapshot refreshed after C++; TF timing uses the independent C++ clock.'
         for job in jobs:
             if job['record']['status'] == 'PENDING':
                 try:
@@ -255,12 +321,25 @@ def collect(output, duration, observed, expected):
                         job['record']['status'] = 'TIMEOUT'
                 except Exception as error:
                     job['record'].update(status='ERROR', error=str(error))
-        for topic in sorted(set(obstacle_topics + ['/tf', '/tf_static'])):
+        observed['plugin_parameters'] = plugin_probe.finish()
+        observed['plugin_parameters']['provenance'] = observed['plugin_provenance']
+        configure_log = output.parent / 'bringup_before_probe.log'
+        if configure_log.is_file():
+            observed['plugin_parameters']['configure_log_observations'] = parse_configuration_logs(configure_log.read_text())
+            observed['plugin_parameters']['configure_log_sha256'] = digest(configure_log)
+        else:
+            observed['plugin_parameters']['configure_log_error'] = 'No frozen bringup log before this probe.'
+        observed['plugin_parameters']['assessment'] = assess_plugin_parameters(observed['plugin_parameters'])
+        for topic in sorted(set(obstacle_topics + ['/tf', '/tf_static', '/joint_states', '/cmd_vel_nav', '/cmd_vel'])):
             try:
                 observed['topic_publishers'][topic] = [
                     {'node_name': endpoint.node_name, 'node_namespace': endpoint.node_namespace,
                      'gid': bytes(endpoint.endpoint_gid).hex(), 'topic_type': endpoint.topic_type}
                     for endpoint in node.get_publishers_info_by_topic(topic)]
+                observed['topic_subscribers'][topic] = [
+                    {'node_name': endpoint.node_name, 'node_namespace': endpoint.node_namespace,
+                     'gid': bytes(endpoint.endpoint_gid).hex(), 'topic_type': endpoint.topic_type}
+                    for endpoint in node.get_subscriptions_info_by_topic(topic)]
             except Exception as error:
                 observed['topic_discovery_errors'][topic] = str(error)
 
@@ -279,24 +358,33 @@ def collect(output, duration, observed, expected):
             pose = observed['transforms'].get(frame + '->base_footprint', {})
             observed['costmap_bounds'][name] = costmap_bounds(metadata, pose, frame)
 
-        gps_odom = observed['topics'].get('/odometry/gps', {})
-        for name, position, source_stamp, source_frame, reference_key in (
-            ('from_ll_gps_vs_map_gps_link', observed['from_ll'].get('live_gps', {}).get('map_point'),
-             observed['from_ll'].get('live_gps', {}).get('input_sensor_stamp'), 'map', 'map->gps_link'),
-            ('gps_odometry_vs_map_base_footprint', gps_odom.get('last', {}).get('position'),
-             gps_odom.get('last_stamp'), gps_odom.get('last', {}).get('frame_id'), 'map->base_footprint')):
-            transform = observed['transforms'].get(reference_key, {})
-            reference = transform.get('translation')
-            if source_frame == 'map' and position is not None and reference is not None:
-                delta = {key: position[key] - reference[key] for key in ('x', 'y', 'z')}
-                observed['alignment'][name] = {'delta_m': delta, 'horizontal_distance_m': math.hypot(delta['x'], delta['y']),
-                    'source_stamp': source_stamp, 'reference_stamp': transform.get('stamp'), 'comparison_frame': 'map',
-                    'assessment': 'REVIEW_REQUIRED', 'note': 'Samples may have different stamps; inspect saved stamps and lever arms. No geometric acceptance threshold assumed.'}
-            else:
-                observed['alignment'][name] = {'assessment': 'UNAVAILABLE_OR_FRAME_MISMATCH', 'source_frame': source_frame}
+        observed['localization_sample_history'] = {name: list(samples) for name, samples in histories.items()}
+        live_fix = observed['from_ll'].get('live_gps', {})
+        target_ns = live_fix.get('input_sensor_stamp_ns')
+        aligned_tf = {}
+        if isinstance(target_ns, int) and target_ns > 0:
+            for parent, child in (('map', 'gps_link'), ('map', 'base_footprint'), ('base_footprint', 'gps_link')):
+                key = parent + '->' + child
+                record = {'parent': parent, 'child': child, 'requested_stamp_ns': target_ns,
+                          'lookup_mode': 'EXACT', 'is_static': parent == 'base_footprint'}
+                try:
+                    transform = buffer.lookup_transform(parent, child,
+                        Time(nanoseconds=target_ns, clock_type=ClockType.ROS_TIME))
+                    record.update(status='OK',
+                        stamp_ns=transform.header.stamp.sec * 1_000_000_000 + transform.header.stamp.nanosec,
+                        translation=xyz(transform.transform.translation), rotation=quaternion(transform.transform.rotation))
+                except Exception as error:
+                    record.update(status='UNAVAILABLE', error=str(error))
+                aligned_tf[key] = record
+        def exact_sample(topic):
+            return next((sample for sample in histories[topic] if sample['stamp_ns'] == target_ns), {})
+        observed['alignment'] = analyze_alignment(live_fix, exact_sample('/gps/fix'),
+                                                  exact_sample('/odometry/gps'), aligned_tf)
         observed['collection_status'] = ('COMPLETE' if all(job['record']['status'] == 'OK' for job in jobs)
-                                         and observed['tf_authority'].get('observation_complete') else 'PARTIAL')
+                                         and observed['tf_authority'].get('observation_complete')
+                                         and observed['plugin_parameters'].get('collection_status') == 'COMPLETE' else 'PARTIAL')
     finally:
+        finish_plugin_capture(observed, plugin_probe, histories)
         if process is not None and process.poll() is None:
             process.kill()
             process.wait(timeout=3)
@@ -317,14 +405,15 @@ def main(argv=None):
     output = args.output_directory.resolve(strict=True)
     if not output.is_dir():
         parser.error('output_directory must already exist')
-    for name in ('readiness.json', 'readiness_observations.json', 'tf_authority.json', 'tf_authority_process.log'):
+    for name in ('readiness.json', 'readiness_observations.json', 'tf_authority.json', 'tf_authority_process.log',
+                 'plugin_parameters.json', 'runtime_binary_identity.json', 'localization_alignment.json', 'ackermann_geometry.json'):
         if (output / name).exists() or (output / name).is_symlink():
             parser.error('Refusing to replace earlier evidence: ' + name)
     observed = {'schema_version': 1, 'started_at_utc': datetime.now(timezone.utc).isoformat(),
         'requested_duration_wall_seconds': args.duration, 'collection_status': 'FAILED',
         'clock': {'count': 0, 'forward_steps': 0, 'backward_steps': 0}, 'topics': {},
         'parameters': {}, 'lifecycle': {}, 'from_ll': {}, 'transforms': {}, 'tf_authority': {},
-        'topic_publishers': {}, 'topic_discovery_errors': {}, 'costmap_bounds': {}, 'alignment': {},
+        'topic_publishers': {}, 'topic_subscribers': {}, 'topic_discovery_errors': {}, 'costmap_bounds': {}, 'alignment': {},
         'nonfinite_json_encoding': 'Nonfinite numbers are preserved as string tokens nan/inf/-inf.'}
     expected = {}
     try:
@@ -341,6 +430,11 @@ def main(argv=None):
                   'mission_ready': False, 'gate0': 'NOT_YET_VERIFIED', 'gate1': 'NOT_YET_VERIFIED'}
     write_new(output / 'readiness_observations.json', observed)
     write_new(output / 'readiness.json', result)
+    for filename, key in (('plugin_parameters.json', 'plugin_parameters'),
+                          ('runtime_binary_identity.json', 'runtime_binary_identity'),
+                          ('localization_alignment.json', 'alignment'),
+                          ('ackermann_geometry.json', 'ackermann_geometry')):
+        write_new(output / filename, observed.get(key, {'status': 'UNAVAILABLE'}))
     print(json.dumps({key: result[key] for key in ('collection_status', 'diagnostic_status', 'mission_ready', 'gate0', 'gate1')}))
     return 0 if observed['collection_status'] != 'FAILED' else 2
 

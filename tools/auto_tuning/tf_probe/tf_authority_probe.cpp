@@ -9,13 +9,13 @@
 #include <iterator>
 #include <stdexcept>
 #include <string>
-#include <thread>
 #include <vector>
 
 #include <fcntl.h>
 #include <unistd.h>
 
 #include "rclcpp/rclcpp.hpp"
+#include "rosgraph_msgs/msg/clock.hpp"
 #include "tf2_msgs/msg/tf_message.hpp"
 #include "observations.hpp"
 
@@ -50,18 +50,35 @@ void write_exclusive(const std::string & path, const std::string & contents)
 
 void discover(const rclcpp::Node::SharedPtr & node, phase_a_tf::Observations & observations)
 {
-  for (const std::string topic : {"/tf", "/tf_static"}) {
+  for (const std::string topic : {"/tf", "/tf_static", "/clock"}) {
     try {
       for (const auto & publisher : node->get_publishers_info_by_topic(topic)) {
         const auto & gid = publisher.endpoint_gid();
+        const auto qos = publisher.qos_profile().get_rmw_qos_profile();
+        // Keep exact RMW enum values and depth; UNKNOWN is not silently replaced.
+        const std::string offered_qos = "{\"reliability\":" + std::to_string(qos.reliability) +
+          ",\"durability\":" + std::to_string(qos.durability) +
+          ",\"history\":" + std::to_string(qos.history) + ",\"depth\":" +
+          std::to_string(qos.depth) + "}";
         observations.endpoint(
           topic, phase_a_tf::gid_hex(gid.begin(), gid.end()),
-          publisher.node_name(), publisher.node_namespace());
+          publisher.node_name(), publisher.node_namespace(), offered_qos);
       }
     } catch (const std::exception & error) {
       observations.discovery_error(topic + ": " + error.what());
     }
   }
+}
+
+rclcpp::SubscriptionOptions loss_options(
+  const std::string & topic, phase_a_tf::Observations & observations)
+{
+  rclcpp::SubscriptionOptions options;
+  options.event_callbacks.message_lost_callback =
+    [&observations, topic](rclcpp::QOSMessageLostInfo & info) {
+      observations.loss_event(topic, info.total_count, info.total_count_change);
+    };
+  return options;
 }
 }  // namespace
 
@@ -123,6 +140,9 @@ int main(int argc, char ** argv)
       .append_parameter_override("start_type_description_service", false);
     auto node = std::make_shared<rclcpp::Node>(
       "nav2_tf_authority_probe_" + std::to_string(::getpid()), options);
+    const auto wall_offset = [&started]() {
+        return std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+      };
     std::vector<rclcpp::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr> subscriptions;
     for (const std::string topic : {"/tf", "/tf_static"}) {
       auto qos = rclcpp::QoS(rclcpp::KeepLast(100));
@@ -132,12 +152,12 @@ int main(int argc, char ** argv)
         // Compatible with both BEST_EFFORT and RELIABLE dynamic TF writers.
         qos.best_effort().durability_volatile();
       }
-      subscriptions.push_back(node->create_subscription<tf2_msgs::msg::TFMessage>(
-        topic, qos,
-        [&observations, topic](
+      const auto callback = [&observations, topic, &wall_offset](
           tf2_msgs::msg::TFMessage::ConstSharedPtr message, const rclcpp::MessageInfo & info)
         {
-          const auto & gid = info.get_rmw_message_info().publisher_gid;
+          const double received_wall = wall_offset();
+          const auto & rmw_info = info.get_rmw_message_info();
+          const auto & gid = rmw_info.publisher_gid;
           const auto identity = phase_a_tf::gid_hex(std::begin(gid.data), std::end(gid.data));
           for (const auto & transform : message->transforms) {
             const auto & translation = transform.transform.translation;
@@ -145,9 +165,32 @@ int main(int argc, char ** argv)
             observations.observe(
               topic, transform.header.frame_id, transform.child_frame_id, identity,
               {transform.header.stamp.sec, transform.header.stamp.nanosec},
-              {translation.x, translation.y, translation.z, rotation.x, rotation.y, rotation.z, rotation.w});
+              {translation.x, translation.y, translation.z, rotation.x, rotation.y, rotation.z, rotation.w},
+              received_wall, rmw_info.source_timestamp, rmw_info.received_timestamp);
           }
-        }));
+        };
+      try {
+        subscriptions.push_back(node->create_subscription<tf2_msgs::msg::TFMessage>(
+          topic, qos, callback, loss_options(topic, observations)));
+        observations.loss_event_support(topic, true);
+      } catch (const rclcpp::UnsupportedEventTypeException & error) {
+        observations.loss_event_support(topic, false, error.what());
+        subscriptions.push_back(node->create_subscription<tf2_msgs::msg::TFMessage>(topic, qos, callback));
+      }
+    }
+    const auto clock_callback = [&observations, &wall_offset](rosgraph_msgs::msg::Clock::ConstSharedPtr message) {
+        observations.observe_clock({message->clock.sec, message->clock.nanosec}, wall_offset());
+      };
+    auto clock_qos = rclcpp::QoS(rclcpp::KeepLast(100)).best_effort().durability_volatile();
+    rclcpp::Subscription<rosgraph_msgs::msg::Clock>::SharedPtr clock_subscription;
+    try {
+      clock_subscription = node->create_subscription<rosgraph_msgs::msg::Clock>(
+        "/clock", clock_qos, clock_callback, loss_options("/clock", observations));
+      observations.loss_event_support("/clock", true);
+    } catch (const rclcpp::UnsupportedEventTypeException & error) {
+      observations.loss_event_support("/clock", false, error.what());
+      clock_subscription = node->create_subscription<rosgraph_msgs::msg::Clock>(
+        "/clock", clock_qos, clock_callback);
     }
     rclcpp::executors::SingleThreadedExecutor executor;
     executor.add_node(node);
@@ -156,14 +199,17 @@ int main(int argc, char ** argv)
     const auto deadline = started + std::chrono::duration<double>(requested_seconds);
     auto next_discovery = started;
     while (rclcpp::ok() && std::chrono::steady_clock::now() < deadline) {
-      executor.spin_some(std::chrono::milliseconds(20));
+      // spin_some plus an unconditional 5 ms sleep throttled each ready
+      // subscription to roughly 200 takes/s. One plugin emits separate wheel
+      // TF messages in addition to odom. Wait only when no callback is ready.
+      executor.spin_once(std::chrono::milliseconds(20));
       const auto now = std::chrono::steady_clock::now();
       if (now >= next_discovery) {
         discover(node, observations);
         next_discovery = now + std::chrono::seconds(1);
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
+    observations.finish_window(wall_offset());
     complete = rclcpp::ok() && std::chrono::steady_clock::now() >= deadline;
     if (complete) {
       discover(node, observations);

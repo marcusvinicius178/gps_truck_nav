@@ -28,6 +28,7 @@ RUN source /opt/ros/iron/setup.bash && \
       --executor sequential --cmake-args -DBUILD_TESTING=OFF && \
     dpkg-query -W > /ws/installed-packages.tsv
 COPY config/auto_tuning /opt/auto_tuning/config
+ENV GAZEBO_MODEL_PATH=/opt/auto_tuning/config/models
 COPY tools/auto_tuning /opt/auto_tuning/tools
 RUN source /opt/ros/iron/setup.bash && \
     cmake -S /opt/auto_tuning/tools/tf_probe -B /tmp/nav2_tf_probe_build \

@@ -112,6 +112,7 @@ class LocalPhaseTests(unittest.TestCase):
         self.assertIn("xvfb-run", create)
         self.assertIn("publish_legacy_cloud_tf:=false", create)
         self.assertIn("use_ackermann_bt:=true", create)
+        self.assertIn("world:=/opt/auto_tuning/config/worlds/ctvi_tf_sensors.world", create)
         joined = " ".join(" ".join(argv) for _, argv, _ in calls)
         for forbidden in ("send_goal", "logged_waypoint_follower.py", "system prune", " rm ", " rmi ", "use_rviz:=true", "--network host"):
             self.assertNotIn(forbidden, joined)

@@ -1,12 +1,12 @@
-# Engineering handoff — Fase A, 29/10/2026
+# Engineering handoff — Fase A, 03/11/2026
 
 ## Resultado e limite
 
-**HOST PREFLIGHT APROVADO pelo revisor para ipt-sim-01. Gate 0 e Gate 1: NOT YET VERIFIED.** O ZIP local do commit `b8922ae` comprova imagem validada e bringup parcialmente funcional, mas reprova costmaps e ativação integral do Nav2. Neste Work não houve build Docker nem lançamento ROS/Gazebo; o núcleo do novo observador TF foi compilado/testado sem ROS. Não houve missão, gravação MCAP nova ou otimização. A decisão de 14/10 permanece CONDITIONAL GO.
+**HOST PREFLIGHT APROVADO pelo revisor para ipt-sim-01. Gate 0 e Gate 1: NOT_YET_VERIFIED.** O ZIP do commit `978ab23` confirma IMAGE_VALIDATED, costmaps corretas e sete lifecycle nodes ACTIVE com as duas BTs Ackermann. Captura COMPLETE não significou saúde integral: 49 PASS, 2 FAIL, 8 BLOCKED_REVIEW e `mission_ready=false`. O ZIP e o segundo relatório independente foram lidos integralmente antes das alterações. Neste Work não houve build Docker nem lançamento ROS/Gazebo; testes compilam somente o núcleo C++ sem ROS. Não houve missão, gravação MCAP nova ou otimização. A decisão de 14/10 permanece CONDITIONAL GO.
 
 O proprietário já executou `host_preflight.py` e forneceu o JSON. A leitura integral confirmou Ubuntu 22.04.5, 32 CPUs lógicas, 60,3 GiB RAM, Docker 29.8.2/Compose 5.5.1, daemon local e Git/LFS existentes. Humble deve permanecer intacto; não instalar Gazebo no host. Detalhes e limites estão em `host_preflight_ipt_sim_01.md`.
 
-O próximo passo é a **seção 2.2 de `local_setup_runbook.md`**: atualizar o checkout dedicado, reconstruir a imagem e, somente após `IMAGE_VALIDATED`, repetir apenas o probe em diretório exclusivo. A investigação causal e os limites estão em `independent_bringup_review.md` e `localization_actuation_bringup_review.md`. Os arquivos completos estão no branch da PR #2; não há edição manual por trechos. Retornar o novo ZIP ao revisor independente. Falha de build interrompe a sequência e preserva os logs.
+O próximo passo é a **seção 2.3 de `local_setup_runbook.md`**: atualizar o checkout dedicado, reconstruir a imagem e, somente após `IMAGE_VALIDATED`, repetir apenas o probe em diretório exclusivo. A investigação atual está em `second_independent_review.md` e nos contratos de localização/covariâncias, atuação e observabilidade de plugins. Os arquivos completos estão no branch da PR #2; não há edição manual por trechos. Retornar o novo ZIP ao revisor independente. Falha de build interrompe a sequência e preserva os logs.
 
 ## Entregáveis
 
@@ -26,6 +26,10 @@ O próximo passo é a **seção 2.2 de `local_setup_runbook.md`**: atualizar o c
 | `tools/auto_tuning/collect_runtime_evidence.sh` | Probes ROS limitados no container, somente observações, sem aprovação automática. |
 | `docker/auto_tuning/Dockerfile` e `Dockerfile.dockerignore` | Imagem prospectiva com base fornecida por digest, guard LFS, build truck_bringup e MCAP. |
 | `config/auto_tuning/dual_ekf_navsat_gate0.yaml` | YAML completo de localização, quatro mudanças isoladas e explícitas. |
+| `config/auto_tuning/models/arocs_truck_tf_sensors/`, `worlds/ctvi_tf_sensors.world`, `tf_sensor_model_variant.json` | Variante completa com apenas três alterações SDF, mundo selecionado explicitamente e hashes/pais/lever arms preservados. |
+| `tools/auto_tuning/parameter_probe.py`, `plugin_parameter_contract.py` | Readbacks tipados e limitados, evidência parcial preservada, identidade e consumidor separados de execução algorítmica. |
+| `tools/auto_tuning/tf_timing_contract.py`, `localization_alignment.py`, `runtime_binary_identity.py`, `audit_ackermann_geometry.py` | Clock da mesma janela, comparações exatas de stamp, identidade de bibliotecas mapeadas e contrato estático sem atuação. |
+| `docs/auto_tuning/second_independent_review.md` e três contratos técnicos associados | Causas, limites, política de covariância, caminho de atuação e critérios verificáveis de fechamento. |
 | `tests/test_host_preflight.py`, `test_local_phase_a.py`, `test_prepare_candidates.py`, `test_evaluate_trial.py`, `test_gate0_localization_contract.py` | Regressões sem dependência de runtime ROS; Docker simulado por fixtures nos testes do helper. |
 | `docs/auto_tuning/evidence/` | Logs reais de testes/audit/LFS/sintaxe e resumo de proveniência. |
 
@@ -54,9 +58,9 @@ Verificação da continuação: **71 testes PASS**, incluindo 15 testes do novo 
 
 ## Bloqueios que impedem missão agora
 
-1. **Interface de comando:** Gazebo Ackermann 3.7.0 interpreta angular.z como esterçamento; MPPI usa yaw rate. Confirmar binário real e conversão antes de dirigir. Não foi implementado conversor com wheelbase presumida nem alegado defeito do runtime histórico privado.
-2. **TF/localização:** amostras existem, mas geometria, covariâncias e autoridades por aresta não estão aprovadas. GPS/IMU declaram base_footprint apesar dos offsets físicos; nenhuma geometria, datum ou incerteza foi substituída nesta revisão.
-3. **BT/costmaps:** corrigidos no código o transporte do YAML completo para o container e a seleção opt-in de duas BTs sem Spin/BackUp. A próxima imagem/probe deve comprovar aplicação dos parâmetros e ACTIVE. A observação `/external_area_pointcloud` continua pendente; não iniciar Virtual Lanes para mascarar dependência do core.
+1. **Interface de comando:** contrato yaw-rate/esterçamento documentado e equação testada offline. Geometria estática expõe incompatibilidade de max_steer/joint limits/raio; watchdog final e autoridade exclusiva ainda faltam. Nenhum conversor foi ligado ao veículo. Medição runtime e atuação autorizada posterior continuam necessárias.
+2. **TF/localização:** variante desabilita somente wheel TF duplicado e corrige headers GPS/IMU. O próximo probe deve comprovar seis pais URDF, odom/juntas preservados, clock da mesma janela e comparações exatas de stamp. Covariâncias e precisão geométrica permanecem pendentes; risco temporal no source navsat ainda exige correlação ao binário. Nenhum datum, geometria ou ruído foi substituído.
+3. **Percepção/parâmetros:** costmaps e BTs estão confirmadas no host e foram preservadas. O produtor de `/external_area_pointcloud` não foi identificado; não habilitar Virtual Lanes para mascará-lo. Readbacks Smac/MPPI ampliados ainda dependem da nova execução; alguns nomes YAML não têm consumidor na versão inspecionada e não são knobs válidos de otimização sem revisão.
 4. **Missão/referência/velocidade:** rota ativa pública marcada 5_6 não pode ser assumida S1/S2/S3. Os limites atuais não definem automaticamente 20 km/h. O equivalente de steering do evaluator deve ser conciliado com o modelo.
 5. **Ambiente/medição:** imagem anterior identificada e validada no host; a imagem corrigida, incluindo compilação do adaptador ROS do observador, ainda depende de build local. `dpkg-query`, digest e logs continuam congelados por tentativa.
 6. **Automação:** a coleta agora produz critérios objetivos e `mission_ready=false`; faltam supervisor de missão, action JSON, recorder e reset entre A/B. O diagnóstico não os substitui.
