@@ -99,6 +99,56 @@ def prepare_presentation_model(config, destination, model_uri):
     }
 
 
+def gazebo_asset_environment(share, presentation_models, config, inherited):
+    """Give the independently launched gzclient the server's local assets.
+
+    Launch SetEnvironmentVariable actions affect the launch's children only.
+    They do not update this supervisor, which also starts gzclient directly.
+    Keep the presentation alias first, then expose the installed canonical
+    meshes and terrain to both processes. Preserve additional inherited paths.
+    """
+    def joined(primary, variable):
+        paths = [str(path) for path in primary] + inherited.get(variable, '').split(os.pathsep)
+        return os.pathsep.join(dict.fromkeys(path for path in paths if path))
+
+    return {
+        'GAZEBO_MODEL_PATH': joined([
+            presentation_models, share / 'models', '/usr/share/gazebo-11/models',
+            config / 'plant_candidate/models', config / 'models'], 'GAZEBO_MODEL_PATH'),
+        'GAZEBO_RESOURCE_PATH': joined([
+            share / 'worlds', share / 'models', '/usr/share/gazebo-11'], 'GAZEBO_RESOURCE_PATH'),
+    }
+
+
+def visual_asset_readback(model_sdf, model_search_path):
+    """Resolve the truck meshes and CTVI resources in the actual GUI paths.
+
+    This is a local file/readability check, not proof of OGRE rendering. A
+    missing mesh should fail clearly before showing an incomplete truck.
+    """
+    tree = ET.parse(model_sdf)
+    uris = {node.text.strip() for node in tree.findall('.//mesh/uri') if node.text}
+    uris.update(('model://ctvi/model.sdf',
+                 'model://ctvi/materials/scripts/MyTerrainMaterial.material',
+                 'model://ctvi/materials/textures/ctvi_aerial.png'))
+    paths = [Path(item) for item in model_search_path.split(os.pathsep) if item]
+    result = []
+    for uri in sorted(uris):
+        if not uri.startswith('model://'):
+            raise ValueError('Unreviewed visual mesh URI: ' + uri)
+        relative = Path(uri.removeprefix('model://'))
+        if relative.is_absolute() or '..' in relative.parts:
+            raise ValueError('Invalid visual asset URI: ' + uri)
+        resolved = next((base / relative for base in paths if (base / relative).is_file()), None)
+        if resolved is None:
+            raise ValueError('Gazebo client cannot resolve visual asset: ' + uri)
+        with resolved.open('rb') as stream:
+            if stream.read(100).startswith(b'version https://git-lfs.github.com/spec/v1'):
+                raise ValueError('Gazebo client visual asset is an unhydrated LFS pointer: ' + str(resolved))
+        result.append({'uri': uri, 'resolved_file': str(resolved), 'bytes': resolved.stat().st_size})
+    return result
+
+
 def observation_world(source, model_uri='model://arocs_truck_tf_sensors'):
     """Add camera-only presentation settings; retain every source byte otherwise."""
     text = source.read_text()
@@ -224,7 +274,8 @@ def main(argv=None):
     def start(name, command):
         stream = (EVIDENCE / (name + '.log')).open('xb')
         logs.append(stream)
-        process = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
+        process = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT,
+                                   start_new_session=True, env=os.environ.copy())
         processes[name] = process
         with (EVIDENCE / 'session_commands.jsonl').open('a') as out:
             out.write(json.dumps({'name': name, 'pid': process.pid, 'argv': command,
@@ -234,12 +285,17 @@ def main(argv=None):
     started = time.monotonic()
     code = 0
     try:
+        from ament_index_python.packages import get_package_share_directory
+        installed_share = Path(get_package_share_directory('truck_bringup'))
         source = Path(next(item.split(':=', 1)[1] for item in selected_arguments if item.startswith('world:=')))
         model_uri = ('model://arocs_truck_candidate' if selected_profile in phase.CANDIDATE_PROFILES
                      else 'model://arocs_truck_tf_sensors')
         presentation_models = EVIDENCE / 'presentation_models'
         model_presentation = prepare_presentation_model(CONFIG, presentation_models, model_uri)
-        os.environ['GAZEBO_MODEL_PATH'] = str(presentation_models) + os.pathsep + os.environ.get('GAZEBO_MODEL_PATH', '')
+        asset_environment = gazebo_asset_environment(installed_share, presentation_models, CONFIG, os.environ)
+        os.environ.update(asset_environment)
+        assets = visual_asset_readback(Path(model_presentation['presentation_model']),
+                                       asset_environment['GAZEBO_MODEL_PATH'])
         world, addition = observation_world(source, model_uri)
         path = EVIDENCE / 'observation_world.world'
         path.write_text(world)
@@ -250,6 +306,8 @@ def main(argv=None):
             'navigation_profile': selected_profile, 'navigation_arguments': selected_arguments,
             'model_presentation': model_presentation,
             'session_model_search_path': os.environ['GAZEBO_MODEL_PATH'],
+            'session_resource_search_path': os.environ['GAZEBO_RESOURCE_PATH'],
+            'visual_assets': assets,
             'rviz_config_sha256': hashlib.sha256((CONFIG / 'observation.rviz').read_bytes()).hexdigest()})
         start('xvfb', ['Xvfb', ':91', '-screen', '0', '2200x900x24', '-nolisten', 'tcp',
                        '-fbdir', str(EVIDENCE / 'framebuffer')])

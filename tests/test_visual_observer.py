@@ -3,10 +3,12 @@ from http.server import HTTPServer
 import importlib.util
 import json
 import math
+import os
 from pathlib import Path
 import socket
 import struct
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -165,6 +167,78 @@ class VisualHttpTests(unittest.TestCase):
 
 
 class PresentationContractTests(unittest.TestCase):
+    def asset_fixture(self, root):
+        config = ROOT / 'config/auto_tuning'
+        share = root / 'installed/share/truck_bringup'
+        # Use the real candidate's complete URIs, with tiny synthetic asset
+        # payloads. These test resolution, never claim to render the fixtures.
+        source = config / 'plant_candidate/models/arocs_truck_candidate/model.sdf'
+        meshes = {node.text for node in ET.parse(source).findall('.//mesh/uri')}
+        uris = meshes | {'model://ctvi/model.sdf',
+                        'model://ctvi/materials/scripts/MyTerrainMaterial.material',
+                        'model://ctvi/materials/textures/ctvi_aerial.png'}
+        for uri in uris:
+            path = share / 'models' / uri.removeprefix('model://')
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b'offline resolution fixture, not renderable data')
+        presentation = root / 'presentation_models'
+        model = session.prepare_presentation_model(config, presentation, 'model://arocs_truck_candidate')
+        return config, share, presentation, Path(model['presentation_model']), uris
+
+    def test_independent_client_gets_installed_mesh_and_resource_paths(self):
+        inherited = {'GAZEBO_MODEL_PATH': '/old/models:/old/models:',
+                     'GAZEBO_RESOURCE_PATH': '/old/resources:', 'UNRELATED': 'keep'}
+        before = inherited.copy()
+        environment = session.gazebo_asset_environment(Path('/overlay/share/truck_bringup'),
+                                                       Path('/session/presentation_models'),
+                                                       Path('/config'), inherited)
+        models = environment['GAZEBO_MODEL_PATH'].split(os.pathsep)
+        resources = environment['GAZEBO_RESOURCE_PATH'].split(os.pathsep)
+        self.assertEqual(models[:2], ['/session/presentation_models', '/overlay/share/truck_bringup/models'])
+        self.assertIn('/overlay/share/truck_bringup/worlds', resources)
+        self.assertIn('/usr/share/gazebo-11', resources)
+        self.assertEqual(models.count('/old/models'), 1)
+        self.assertIn('/old/resources', resources)
+        self.assertNotIn('', models + resources)
+        self.assertEqual(inherited, before)
+
+    def test_previous_gui_paths_reproduce_missing_mesh_and_shared_paths_resolve_all(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config, share, presentation, model, uris = self.asset_fixture(Path(tmp))
+            previous = os.pathsep.join(map(str, (presentation, config / 'plant_candidate/models', config / 'models')))
+            with self.assertRaisesRegex(ValueError, 'cannot resolve visual asset: model://arocs_truck/'):
+                session.visual_asset_readback(model, previous)
+            environment = session.gazebo_asset_environment(share, presentation, config, {})
+            assets = session.visual_asset_readback(model, environment['GAZEBO_MODEL_PATH'])
+            self.assertEqual({asset['uri'] for asset in assets}, uris)
+            self.assertTrue(all(Path(asset['resolved_file']).is_relative_to(share / 'models') for asset in assets))
+
+    def test_asset_environment_reaches_a_separately_started_client_process(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config, share, presentation, model, uris = self.asset_fixture(Path(tmp))
+            environment = {**os.environ, **session.gazebo_asset_environment(share, presentation, config, {})}
+            code = ('import importlib.util,json,os,sys; '
+                    's=importlib.util.spec_from_file_location("session",sys.argv[1]); '
+                    'm=importlib.util.module_from_spec(s);s.loader.exec_module(m); '
+                    'print(json.dumps(m.visual_asset_readback(sys.argv[2],os.environ["GAZEBO_MODEL_PATH"])))')
+            result = subprocess.run([sys.executable, '-c', code,
+                str(ROOT / 'tools/auto_tuning/visual_observer_session.py'), str(model)],
+                env=environment, check=True, capture_output=True, text=True, timeout=5)
+            self.assertEqual({asset['uri'] for asset in json.loads(result.stdout)}, uris)
+
+    def test_missing_or_pointer_mesh_fails_before_presenting_incomplete_truck(self):
+        for pointer in (False, True):
+            with tempfile.TemporaryDirectory() as tmp:
+                config, share, presentation, model, _ = self.asset_fixture(Path(tmp))
+                cabin = share / 'models/arocs_truck/meshes/cabine_chassi.dae'
+                if pointer:
+                    cabin.write_text('version https://git-lfs.github.com/spec/v1\noid sha256:fixture\n')
+                else:
+                    cabin.unlink()
+                environment = session.gazebo_asset_environment(share, presentation, config, {})
+                with self.assertRaisesRegex(ValueError, 'unhydrated LFS pointer' if pointer else 'cannot resolve visual asset'):
+                    session.visual_asset_readback(model, environment['GAZEBO_MODEL_PATH'])
+
     def test_private_framebuffer_is_host_readable_without_following_symlinks(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'Xvfb_screen0'

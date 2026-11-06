@@ -1,6 +1,6 @@
 # Preparação local — ipt-sim-01, continuação da Fase A
 
-**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT_YET_VERIFIED.** A primeira visualização Gazebo/RViz foi confirmada no host. Seguir agora a **seção 2.6** para corrigir o acesso às novas evidências e repetir somente build, probe `candidate20kmh` e observação visual. Os reparos anteriores de TF/sensores, costmaps, BTs e parâmetros permanecem preservados. A variante ainda não é uma planta dinamicamente validada. Nenhum movimento. As seções anteriores ficam como histórico operacional.
+**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT_YET_VERIFIED.** O host confirmou o acesso shadow corrigido e OBSERVATIONS_COLLECTED em883fe4b. A captura mostra o caminhão no RViz e malhas ausentes no Gazebo. Seguir agora a **seção 2.7**, correção dos caminhos de assets do cliente gráfico. Os reparos anteriores permanecem preservados; prontidão Nav2 ainda INCOMPLETE/PARTIAL e a planta não está dinamicamente validada. Nenhum movimento. As seções anteriores ficam como histórico operacional.
 
 ## 1. Ambiente confirmado e isolamento
 
@@ -601,6 +601,17 @@ com cache elegível → um probe candidate20kmh → leitura sem sudo → Gazebo/
 stop. Não repetir canonical, candidate25kmh ou diagnósticos adicionais nesta
 etapa. A cópia gráfica muda somente os flags de desenho dos três sensores ray;
 os modelos fonte e todos os parâmetros físicos/de navegação permanecem iguais.
+
+### 2.7. Malhas ausentes no cliente Gazebo
+
+O retorno visual-fix.R15FaYCG confirma a correção de permissões. O gzclient
+independente não herdava o share de modelos que o launch acrescenta ao servidor.
+Agora ambos recebem os caminhos das malhas/recursos instalados; a sessão confere
+a leitura dos assets antes de abrir as janelas. Nenhuma geometria foi alterada.
+Procedimento completo e comandos para encerrar a sessão recebida:
+[gazebo_client_assets_fix.md](gazebo_client_assets_fix.md). Repetir somente build
+com cache elegível, um probe candidate20kmh e observação, mantendo as tentativas
+anteriores. Não há nova autorização ou interface de movimento.
 
 ## 3. Depois de IMAGE_VALIDATED: bringup headless diagnóstico
 

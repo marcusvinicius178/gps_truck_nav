@@ -2,10 +2,11 @@
 
 Este modo abre os aplicativos reais dentro de uma sessão Xvfb privada e mostra seus pixels no navegador do `ipt-sim-01`, aproximadamente uma vez por segundo. Gazebo fica à esquerda; RViz, à direita. **Não existe canal de teclado/mouse, endpoint de goal, controle de modelo ou comando de movimento no visor.** Isso evita chamar de read-only um gzclient nativo, que normalmente oferece ferramentas capazes de alterar a simulação.
 
-**Atualização de 06/11/2026:** Marcus confirmou a primeira renderização real de
-Gazebo/RViz com Arocs e clock avançando. Para repetir somente o necessário com
-as correções de acesso/enquadramento e `candidate20kmh`, seguir o procedimento
-completo em [first_visual_adjustments.md](first_visual_adjustments.md). As seções
+**Atualização de 06/11/2026:** o host confirmou a correção de acesso shadow e a
+vista RViz, mas a captura883fe4b mostrou malhas ausentes no Gazebo. O novo
+procedimento é [gazebo_client_assets_fix.md](gazebo_client_assets_fix.md): os
+caminhos do share instalado passam também ao gzclient independente. Os ajustes
+anteriores de apresentação ficam em first_visual_adjustments.md. As seções
 abaixo conservam a interface geral dos comandos; a seleção é herdada do probe.
 
 O primeiro modo não oferece pan/zoom interativo. A câmera Gazebo é posicionada sobre o spawn do Arocs; RViz acompanha `base_footprint`. São mostrados modelo, frames, pose, scan, footprint e costmaps. Displays de trajetórias estão preparados, mas ficam vazios antes de planejamento autorizado; não enviar um objetivo apenas para preencher a tela. O MPPI 1.2.10 publica `MarkerArray` em `/trajectories` e `Path` em `/transformed_global_plan`, quando seu visualizador é usado; esta revisão não muda `visualize=false` para gerar dados. `/plan` é o caminho global. O scan pode não ter retornos finitos no cenário atual, e ausência de pontos não comprova falha nem sucesso de detecção.
