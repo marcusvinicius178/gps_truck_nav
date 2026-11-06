@@ -39,6 +39,18 @@ def generate_launch_description():
     container_name_full = (namespace, '/', container_name)
     use_respawn = LaunchConfiguration('use_respawn')
     log_level = LaunchConfiguration('log_level')
+    actuation_routing = LaunchConfiguration('actuation_routing')
+
+    # Explicit prospective routing only. The smoother still handles (v, omega),
+    # never steering angles. Behaviors cannot bypass it into the plant. Neither
+    # branch creates an adapter or authorizes motion; the candidate SDF listens
+    # only on /actuation/steering_command, which is not a Nav2 output here.
+    smoothed_velocity_topic = PythonExpression([
+        "'/actuation/nav2_twist' if '", actuation_routing,
+        "' == 'isolated' else 'cmd_vel'"])
+    behavior_velocity_topic = PythonExpression([
+        "'/actuation/behavior_quarantine' if '", actuation_routing,
+        "' == 'isolated' else 'cmd_vel'"])
 
     lifecycle_nodes = ['controller_server',
                        'smoother_server',
@@ -107,6 +119,10 @@ def generate_launch_description():
         'log_level', default_value='info',
         description='log level')
 
+    declare_actuation_routing_cmd = DeclareLaunchArgument(
+        'actuation_routing', default_value='legacy', choices=['legacy', 'isolated'],
+        description='Opt in to separate smoother and quarantined behavior outputs; no actuator connection')
+
     load_nodes = GroupAction(
         condition=IfCondition(PythonExpression(['not ', use_composition])),
         actions=[
@@ -149,7 +165,7 @@ def generate_launch_description():
                 respawn_delay=2.0,
                 parameters=[configured_params],
                 arguments=['--ros-args', '--log-level', log_level],
-                remappings=remappings),
+                remappings=remappings + [('cmd_vel', behavior_velocity_topic)]),
             Node(
                 package='nav2_bt_navigator',
                 executable='bt_navigator',
@@ -180,7 +196,7 @@ def generate_launch_description():
                 parameters=[configured_params],
                 arguments=['--ros-args', '--log-level', log_level],
                 remappings=remappings +
-                        [('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel')]),
+                        [('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', smoothed_velocity_topic)]),
             Node(
                 package='nav2_lifecycle_manager',
                 executable='lifecycle_manager',
@@ -222,7 +238,7 @@ def generate_launch_description():
                         plugin='behavior_server::BehaviorServer',
                         name='behavior_server',
                         parameters=[configured_params],
-                        remappings=remappings),
+                        remappings=remappings + [('cmd_vel', behavior_velocity_topic)]),
                     ComposableNode(
                         package='nav2_bt_navigator',
                         plugin='nav2_bt_navigator::BtNavigator',
@@ -241,7 +257,7 @@ def generate_launch_description():
                         name='velocity_smoother',
                         parameters=[configured_params],
                         remappings=remappings +
-                                [('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel')]),
+                                [('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', smoothed_velocity_topic)]),
                     ComposableNode(
                         package='nav2_lifecycle_manager',
                         plugin='nav2_lifecycle_manager::LifecycleManager',
@@ -268,6 +284,7 @@ def generate_launch_description():
     ld.add_action(declare_container_name_cmd)
     ld.add_action(declare_use_respawn_cmd)
     ld.add_action(declare_log_level_cmd)
+    ld.add_action(declare_actuation_routing_cmd)
     # Add the actions to launch all of the navigation nodes
     ld.add_action(load_nodes)
     ld.add_action(load_composable_nodes)

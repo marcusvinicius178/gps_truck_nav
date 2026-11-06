@@ -53,6 +53,9 @@ def generate_launch_description():
         DeclareLaunchArgument('use_composition', default_value='True'),
         DeclareLaunchArgument('container_name', default_value='nav2_container'),
         DeclareLaunchArgument(
+            'actuation_routing', default_value='legacy', choices=['legacy', 'isolated'],
+            description='Prospective isolated smoother/behavior topics; does not connect actuation'),
+        DeclareLaunchArgument(
             'use_ackermann_bt', default_value='false',
             description='Opt in to prospective no-Spin/no-BackUp trees for both navigation actions'),
         DeclareLaunchArgument('use_gpu', default_value='false', description='Opt in to NVIDIA PRIME offload'),
@@ -98,6 +101,7 @@ def generate_launch_description():
             'namespace': '', 'use_sim_time': lc('use_sim_time'),
             'params_file': lc('params_file'), 'autostart': lc('autostart'),
             'use_composition': lc('use_composition'), 'container_name': lc('container_name'),
+            'actuation_routing': lc('actuation_routing'),
         }),
         include('rviz_launch.py', {'use_sim_time': lc('use_sim_time')}, IfCondition(lc('use_rviz'))),
         include('mapviz.launch.py', {

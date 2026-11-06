@@ -98,6 +98,24 @@ with tempfile.TemporaryDirectory(prefix='nav2-image-smoke-', dir='/tmp') as temp
 
     gazebo_version_check()
 
+    # Compile/link and pure-core smoke only. This branch returns before
+    # rclcpp::init: no ROS node, DDS participant or command publisher.
+    commissioning = Path('/opt/auto_tuning/bin/commissioning_adapter')
+    add('commissioning_adapter_present', commissioning.is_file(), path=str(commissioning))
+    if commissioning.is_file():
+        linked = command('commissioning_adapter_linked_libraries', ['ldd', str(commissioning)])
+        add('commissioning_adapter_no_missing_libraries', linked['passed'] and
+            'not found' not in linked['stdout'] + linked['stderr'])
+        core = command('commissioning_offline_core', [str(commissioning), '--offline-self-test'])
+        try:
+            report = json.loads(core['stdout'])
+            add('commissioning_self_test_no_ros', core['passed'] and
+                report.get('status') == 'OFFLINE_CORE_PASS' and report.get('ros_initialized') is False and
+                report.get('publishers_created') == 0 and report.get('dynamic_validated') is False,
+                report=report)
+        except (ValueError, TypeError) as error:
+            add('commissioning_self_test_no_ros', False, reason=str(error))
+
     # These checks do not call rclpy.init() or create DDS participants.
     for module in ('rclpy', 'rclpy.serialization', 'rosbag2_py', 'rosidl_runtime_py.utilities',
                    'numpy', 'yaml', 'nav_msgs.msg', 'geometry_msgs.msg', 'sensor_msgs.msg',

@@ -36,6 +36,12 @@ RUN source /opt/ros/iron/setup.bash && \
     cmake --build /tmp/nav2_tf_probe_build --parallel 2 && \
     cmake --install /tmp/nav2_tf_probe_build && \
     rm -rf /tmp/nav2_tf_probe_build
+RUN source /opt/ros/iron/setup.bash && \
+    cmake -S /opt/auto_tuning/tools/commissioning_adapter -B /tmp/nav2_commissioning_build \
+      -DCMAKE_INSTALL_PREFIX=/opt/auto_tuning && \
+    cmake --build /tmp/nav2_commissioning_build --parallel 2 && \
+    cmake --install /tmp/nav2_commissioning_build && \
+    rm -rf /tmp/nav2_commissioning_build
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

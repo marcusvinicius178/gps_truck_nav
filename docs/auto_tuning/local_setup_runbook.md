@@ -1,6 +1,6 @@
 # Preparação local — ipt-sim-01, continuação da Fase A
 
-**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT_YET_VERIFIED.** O host confirmou o acesso shadow corrigido e OBSERVATIONS_COLLECTED em883fe4b. A captura mostra o caminhão no RViz e malhas ausentes no Gazebo. Seguir agora a **seção 2.7**, correção dos caminhos de assets do cliente gráfico. Os reparos anteriores permanecem preservados; prontidão Nav2 ainda INCOMPLETE/PARTIAL e a planta não está dinamicamente validada. Nenhum movimento. As seções anteriores ficam como histórico operacional.
+**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT_YET_VERIFIED.** O operador confirmou a demonstração visual de `12c6ff8`: Arocs completo no Gazebo/RViz, CTVI e footprint visíveis. O próximo procedimento vigente é [comissionamento dinâmico prospectivo](dynamic_commissioning.md): novo build/probe e preparação sem publishers de atuação, com provas de contenção por perda de processo. Nenhum movimento está autorizado nesta entrega. As seções anteriores ficam como histórico operacional; não repetir ajustes cosméticos concluídos. A planta ainda não está dinamicamente validada.
 
 ## 1. Ambiente confirmado e isolamento
 

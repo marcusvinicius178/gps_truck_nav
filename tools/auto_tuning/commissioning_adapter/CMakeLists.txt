@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 3.16)
+project(nav2_phase_a_commissioning_adapter LANGUAGES CXX)
+
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(rosgraph_msgs REQUIRED)
+
+add_executable(commissioning_adapter adapter.cpp)
+target_compile_features(commissioning_adapter PRIVATE cxx_std_17)
+target_compile_options(commissioning_adapter PRIVATE -Wall -Wextra -Wpedantic)
+ament_target_dependencies(commissioning_adapter rclcpp geometry_msgs nav_msgs sensor_msgs rosgraph_msgs)
+install(TARGETS commissioning_adapter RUNTIME DESTINATION bin)
