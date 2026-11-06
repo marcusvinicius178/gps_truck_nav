@@ -2,6 +2,7 @@ import http.client
 from http.server import HTTPServer
 import importlib.util
 import json
+import math
 from pathlib import Path
 import socket
 import struct
@@ -207,6 +208,58 @@ class PresentationContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             session.observation_world(source)  # A candidate cannot masquerade as the prior TF/sensor variant.
 
+    def test_camera_looks_at_body_center_and_follows_actual_spawn_heading(self):
+        source = ROOT / 'config/auto_tuning/plant_candidate/worlds/ctvi_plant_candidate.world'
+        text, _ = session.observation_world(source, 'model://arocs_truck_candidate')
+        tree = ET.fromstring(text)
+        pose = [float(value) for value in tree.find("world/include[uri='model://arocs_truck_candidate']/pose").text.split()]
+        camera = [float(value) for value in tree.find('world/gui/camera/pose').text.split()]
+        dx, dy = camera[0] - pose[0], camera[1] - pose[1]
+        # Exact relative front/side offsets, independent of the nonzero yaw.
+        self.assertAlmostEqual(math.cos(pose[5]) * dx + math.sin(pose[5]) * dy, 14, places=7)
+        self.assertAlmostEqual(-math.sin(pose[5]) * dx + math.cos(pose[5]) * dy, -11, places=7)
+        self.assertAlmostEqual(camera[5], math.atan2(-dy, -dx), places=7)
+        self.assertAlmostEqual(camera[4], math.atan2(9, math.hypot(dx, dy)), places=7)
+
+    def test_presentation_hides_only_ray_gui_flags_in_both_models(self):
+        for relative in ('models/arocs_truck_tf_sensors', 'plant_candidate/models/arocs_truck_candidate'):
+            source = ROOT / 'config/auto_tuning' / relative / 'model.sdf'
+            original = source.read_text()
+            shown, changes = session.sensor_presentation_copy(original)
+            before, after = ET.fromstring(original), ET.fromstring(shown)
+            self.assertEqual(len(changes), 3)
+            self.assertEqual({change['sensor'] for change in changes}, {'left_lidar', 'right_lidar', 'sick_lidar'})
+            for sensor in before.findall('.//sensor'):
+                if sensor.get('type') == 'ray':
+                    sensor.find('visualize').text = '0'
+            # This compares every field: enabled state, update rate, ray ranges,
+            # noise, ROS plugin, pose, joints, geometry, PID and all other sensors.
+            self.assertEqual(ET.tostring(before), ET.tostring(after))
+            self.assertEqual(source.read_text(), original)
+
+    def test_session_model_copy_keeps_alias_and_source_config_and_refuses_reuse(self):
+        for uri, relative in (
+                ('model://arocs_truck_tf_sensors', 'models/arocs_truck_tf_sensors'),
+                ('model://arocs_truck_candidate', 'plant_candidate/models/arocs_truck_candidate')):
+            with tempfile.TemporaryDirectory() as tmp:
+                destination = Path(tmp) / 'presentation_models'
+                config = ROOT / 'config/auto_tuning'
+                result = session.prepare_presentation_model(config, destination, uri)
+                model = destination / uri.removeprefix('model://')
+                self.assertEqual((model / 'model.config').read_bytes(), (config / relative / 'model.config').read_bytes())
+                self.assertEqual(result['model_uri'], uri)
+                self.assertFalse(result['sensor_data_configuration_changed'])
+                self.assertNotEqual(result['source_model_sha256'], result['presentation_model_sha256'])
+                with self.assertRaises(FileExistsError):
+                    session.prepare_presentation_model(config, destination, uri)
+
+    def test_unreviewed_ray_or_missing_visual_flag_refused(self):
+        original = (ROOT / 'config/auto_tuning/models/arocs_truck_tf_sensors/model.sdf').read_text()
+        for text in (original.replace("name='left_lidar'", "name='unreviewed_lidar'"),
+                     original.replace('<visualize>1</visualize>', '', 1)):
+            with self.assertRaises(ValueError):
+                session.sensor_presentation_copy(text)
+
     def test_rviz_has_displays_and_no_action_tools_or_panels(self):
         config = yaml.safe_load((ROOT / 'config/auto_tuning/observation.rviz').read_text())
         self.assertEqual(config['Visualization Manager']['Tools'], [])
@@ -220,6 +273,23 @@ class PresentationContractTests(unittest.TestCase):
         self.assertEqual(topics['/transformed_global_plan'], 'rviz_default_plugins/Path')
         self.assertEqual(topics['/trajectories'], 'rviz_default_plugins/MarkerArray')
         self.assertNotIn('/local_plan', topics)
+
+    def test_rviz_truck_framing_and_overlays_are_legible_without_new_control_tools(self):
+        config = yaml.safe_load((ROOT / 'config/auto_tuning/observation.rviz').read_text())
+        manager = config['Visualization Manager']
+        self.assertEqual(manager['Views']['Current']['Target Frame'], 'base_footprint')
+        self.assertEqual(manager['Views']['Current']['Distance'], 20)
+        displays = {d['Name']: d for d in manager['Displays']}
+        self.assertLess(displays['Global rolling costmap']['Alpha'], displays['Local rolling costmap']['Alpha'])
+        tf = displays['Navigation and sensor frames']
+        self.assertFalse(tf['Show Arrows'])
+        self.assertFalse(tf['Show Names'])
+        self.assertTrue(tf['Frames']['rear_axle_nav']['Value'])
+        self.assertTrue(displays['Truck footprint']['Enabled'])
+        self.assertTrue(displays['Sick scan']['Enabled'])
+        self.assertFalse(displays['Global pose']['Enabled'])
+        self.assertFalse(displays['MPPI trajectories (conditional on visualize)']['Enabled'])
+        self.assertEqual(manager['Tools'], [])
 
 
 class VisualDockerTests(unittest.TestCase):

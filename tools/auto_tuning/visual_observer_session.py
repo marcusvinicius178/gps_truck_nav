@@ -10,6 +10,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import signal
 import subprocess
 import sys
@@ -38,6 +39,66 @@ def make_framebuffer_readable(path):
     path.chmod(0o644)
 
 
+def sensor_presentation_copy(text):
+    """Hide GUI-only ray drawings, preserving all other source bytes.
+
+    Classic 11.10.2 Scene::ProcessSensorMsg creates LaserVisual only when the
+    sensor message has visualize=true. Ray parameters/plugins remain intact.
+    The original model is never edited; only the graphical session uses a copy.
+    """
+    changed = []
+
+    def hide(match):
+        sensor = ET.fromstring(match.group(0))
+        if sensor.get('type') != 'ray':
+            return match.group(0)
+        name = sensor.get('name')
+        if name not in ('left_lidar', 'right_lidar', 'sick_lidar'):
+            raise ValueError('Unreviewed ray sensor: ' + str(name))
+        if len(sensor.findall('visualize')) != 1:
+            raise ValueError('Expected one GUI visualization flag per ray sensor')
+        replacement, count = re.subn(r'(<visualize>\s*)(?:1|true)(\s*</visualize>)',
+                                      r'\g<1>0\2', match.group(0))
+        if count != 1:
+            raise ValueError('Expected the reviewed enabled ray visualization flag')
+        changed.append({'sensor': name, 'type': 'ray', 'field': 'visualize',
+                        'source_value': True, 'presentation_value': False})
+        return replacement
+
+    result = re.sub(r'<sensor\b[^>]*>.*?</sensor\s*>', hide, text, flags=re.S)
+    if sorted(item['sensor'] for item in changed) != ['left_lidar', 'right_lidar', 'sick_lidar']:
+        raise ValueError('Expected exactly the three reviewed ray sensors')
+    ET.fromstring(result)
+    return result, changed
+
+
+def prepare_presentation_model(config, destination, model_uri):
+    selected = {
+        'model://arocs_truck_tf_sensors': 'models/arocs_truck_tf_sensors',
+        'model://arocs_truck_candidate': 'plant_candidate/models/arocs_truck_candidate',
+    }
+    if model_uri not in selected:
+        raise ValueError('Unknown graphical model selection')
+    source = config / selected[model_uri]
+    original = (source / 'model.sdf').read_bytes()
+    shown, changes = sensor_presentation_copy(original.decode('utf-8'))
+    model_config = (source / 'model.config').read_bytes()
+    destination.mkdir()  # A new session only; never overwrite prior evidence.
+    model = destination / model_uri.removeprefix('model://')
+    model.mkdir()
+    (model / 'model.sdf').write_text(shown, encoding='utf-8')
+    (model / 'model.config').write_bytes(model_config)
+    return {
+        'model_uri': model_uri, 'source_model': str(source / 'model.sdf'),
+        'source_model_sha256': hashlib.sha256(original).hexdigest(),
+        'presentation_model': str(model / 'model.sdf'),
+        'presentation_model_sha256': hashlib.sha256(shown.encode('utf-8')).hexdigest(),
+        'model_config_sha256': hashlib.sha256(model_config).hexdigest(),
+        'changes': changes, 'sensor_data_configuration_changed': False,
+        'resolution': 'Selected model alias in session search path before config model paths',
+    }
+
+
 def observation_world(source, model_uri='model://arocs_truck_tf_sensors'):
     """Add camera-only presentation settings; retain every source byte otherwise."""
     text = source.read_text()
@@ -53,8 +114,15 @@ def observation_world(source, model_uri='model://arocs_truck_tf_sensors'):
     if len(pose) != 6 or not all(math.isfinite(value) for value in pose):
         raise ValueError('Invalid existing truck spawn pose')
     # Camera position only: no vehicle/entity pose, datum, physics or controller edit.
-    x, y, z = pose[:3]
-    camera = f'{x - 22:.9f} {y - 22:.9f} {z + 18:.9f} 0 0.49 0.785398163'
+    x, y, z, _, _, yaw = pose
+    # Front three-quarter view relative to the truck's actual spawn heading.
+    # Aim at the body center, rather than assuming the world +X/+Y directions.
+    cx = x + 14 * math.cos(yaw) + 11 * math.sin(yaw)
+    cy = y + 14 * math.sin(yaw) - 11 * math.cos(yaw)
+    cz, target_z = z + 10.5, z + 1.5
+    camera_yaw = math.atan2(y - cy, x - cx)
+    camera_pitch = math.atan2(cz - target_z, math.hypot(x - cx, y - cy))
+    camera = f'{cx:.9f} {cy:.9f} {cz:.9f} 0 {camera_pitch:.9f} {camera_yaw:.9f}'
     addition = ('    <gui fullscreen="0">\n'
                 '      <camera name="phase_a_observation_camera">\n'
                 f'        <pose>{camera}</pose>\n'
@@ -169,13 +237,19 @@ def main(argv=None):
         source = Path(next(item.split(':=', 1)[1] for item in selected_arguments if item.startswith('world:=')))
         model_uri = ('model://arocs_truck_candidate' if selected_profile in phase.CANDIDATE_PROFILES
                      else 'model://arocs_truck_tf_sensors')
+        presentation_models = EVIDENCE / 'presentation_models'
+        model_presentation = prepare_presentation_model(CONFIG, presentation_models, model_uri)
+        os.environ['GAZEBO_MODEL_PATH'] = str(presentation_models) + os.pathsep + os.environ.get('GAZEBO_MODEL_PATH', '')
         world, addition = observation_world(source, model_uri)
         path = EVIDENCE / 'observation_world.world'
         path.write_text(world)
         save(EVIDENCE / 'presentation_manifest.json', {
             'source_world': str(source), 'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
             'visual_world_sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
-            'only_added_content': addition, 'scope': 'GUI_CAMERA_ONLY', 'physical_model_changed': False,
+            'only_added_content': addition, 'scope': 'GUI_PRESENTATION_ONLY', 'physical_model_changed': False,
+            'navigation_profile': selected_profile, 'navigation_arguments': selected_arguments,
+            'model_presentation': model_presentation,
+            'session_model_search_path': os.environ['GAZEBO_MODEL_PATH'],
             'rviz_config_sha256': hashlib.sha256((CONFIG / 'observation.rviz').read_bytes()).hexdigest()})
         start('xvfb', ['Xvfb', ':91', '-screen', '0', '2200x900x24', '-nolisten', 'tcp',
                        '-fbdir', str(EVIDENCE / 'framebuffer')])

@@ -5,6 +5,7 @@ import copy
 from dataclasses import asdict, replace
 import json
 import math
+import os
 from pathlib import Path
 from types import SimpleNamespace
 import sys
@@ -16,7 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools/auto_tuning'))
 from ackermann_adapter import (ShadowObserver, attach_subscriptions, convert_classic,
                                 gid_text, json_safe, load_policy, message_info_evidence,
-                                rear_right_offset, run_shadow)
+                                rear_right_offset, run_shadow, inherit_evidence_owner,
+                                private_evidence_file)
 from actuation_contract import ContractError, Policy
 from audit_ackermann_geometry import audit_model
 
@@ -250,6 +252,46 @@ class AckermannAdapterTests(unittest.TestCase):
             self.assertEqual(summary['status'], 'SHADOW_INCOMPLETE')
             self.assertIn('ModuleNotFoundError', summary['error'])
             self.assertFalse(summary['mission_ready'])
+            # The container must hand off both private files and their directory
+            # to the bind parent's owner, so an unprivileged host can read them.
+            parent = output.parent.stat()
+            self.assertEqual(summary['evidence_access']['owner_uid'], parent.st_uid)
+            self.assertEqual(summary['evidence_access']['owner_gid'], parent.st_gid)
+            for path, mode in ((output, 0o700), (output / 'shadow_summary.json', 0o600),
+                               (output / 'shadow_commands.jsonl', 0o600)):
+                self.assertEqual((path.stat().st_uid, path.stat().st_gid), (parent.st_uid, parent.st_gid))
+                self.assertEqual(path.stat().st_mode & 0o777, mode)
+
+    def test_container_root_identity_is_handed_to_bind_parent_owner(self):
+        # Simulate root-created descriptors without requiring root in the test
+        # runner. A real daemon/bind mapping still needs the host regression.
+        with patch('ackermann_adapter.os.fstat', return_value=SimpleNamespace(st_uid=0, st_gid=0)), \
+             patch('ackermann_adapter.os.fchown') as chown:
+            inherit_evidence_owner(42, (1001, 1002))
+        chown.assert_called_once_with(42, 1001, 1002)
+
+    def test_matching_mapped_identity_requires_no_chown(self):
+        with patch('ackermann_adapter.os.fstat', return_value=SimpleNamespace(st_uid=0, st_gid=0)), \
+             patch('ackermann_adapter.os.fchown') as chown:
+            inherit_evidence_owner(42, (0, 0))
+        chown.assert_not_called()
+
+    def test_private_file_refuses_existing_file_and_symlink(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'original'
+            path.write_text('evidence retained')
+            link = Path(temp) / 'link'
+            link.symlink_to(path)
+            for existing in (path, link):
+                with self.assertRaises(FileExistsError):
+                    private_evidence_file(existing, (os.getuid(), os.getgid()))
+            self.assertEqual(path.read_text(), 'evidence retained')
+
+    def test_failed_ownership_transfer_is_not_silently_accepted(self):
+        with patch('ackermann_adapter.os.fstat', return_value=SimpleNamespace(st_uid=0, st_gid=0)), \
+             patch('ackermann_adapter.os.fchown', side_effect=PermissionError('handoff denied')):
+            with self.assertRaises(PermissionError):
+                inherit_evidence_owner(42, (1001, 1002))
 
     def test_existing_evidence_is_never_overwritten(self):
         with tempfile.TemporaryDirectory() as temp:

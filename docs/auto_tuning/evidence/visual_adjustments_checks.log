@@ -1,0 +1,10 @@
+CHECK XML syntax: 44
+CHECK YAML (unique keys): 20
+CHECK Python/launch syntax: 90
+CHECK unique canonical packages: 3
+CHECK installed Python entry points: 8
+CHECK world/waypoint site consistency (not alignment or runtime): 1
+CHECK required mesh references: 9
+PASS: structural audit
+PASS: Bash and embedded Python syntax {"bash_fences": 31, "embedded_python": 10}
+PASS: protected source/bundle files unchanged 28

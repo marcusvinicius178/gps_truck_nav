@@ -1,6 +1,6 @@
 # Preparação local — ipt-sim-01, continuação da Fase A
 
-**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT_YET_VERIFIED.** O ZIP do commit `a21403f` confirma TF/frames, odometria/juntas, costmaps, duas BTs, lifecycle e parâmetros obrigatórios; esses reparos permanecem preservados. Seguir agora a **seção 2.5**: novo checkout isolado, build, probe do candidato Classic e visualização estritamente observacional. A variante ainda não é uma planta dinamicamente validada. Nenhum movimento. As seções anteriores ficam como histórico operacional.
+**HOST PREFLIGHT APROVADO pelo revisor. Gates 0 e 1: NOT_YET_VERIFIED.** A primeira visualização Gazebo/RViz foi confirmada no host. Seguir agora a **seção 2.6** para corrigir o acesso às novas evidências e repetir somente build, probe `candidate20kmh` e observação visual. Os reparos anteriores de TF/sensores, costmaps, BTs e parâmetros permanecem preservados. A variante ainda não é uma planta dinamicamente validada. Nenhum movimento. As seções anteriores ficam como histórico operacional.
 
 ## 1. Ambiente confirmado e isolamento
 
@@ -586,6 +586,21 @@ validada fixa**. Histórico fica rastreável; não é necessário benchmark
 histórico/corrigido. Benchmark entre pares planejador–controlador é posterior e
 condicionado ao tempo. Nenhum comando desta seção publica Twist, goal, missão,
 inicia Optuna, fine-tuning ou Virtual Lanes.
+
+### 2.6. Ajustes da primeira visualização e permissões do shadow
+
+O probe b078c16 terminou FAILED na leitura pelo host, embora o usuário tenha
+confirmado via sudo SHADOW_COMPLETE, zero publishers, nenhum comando inesperado,
+NOT_EXERCISED e cleanup correto. Não reclassificar ou alterar essa evidência.
+O novo shadow herda UID/GID do pai bind-mounted criado pelo usuário do host,
+mantendo diretório0700 e arquivos0600. Não requer sudo nem chmod777.
+
+O procedimento completo e os critérios pontuais estão em
+[first_visual_adjustments.md](first_visual_adjustments.md): checkout novo → build
+com cache elegível → um probe candidate20kmh → leitura sem sudo → Gazebo/RViz →
+stop. Não repetir canonical, candidate25kmh ou diagnósticos adicionais nesta
+etapa. A cópia gráfica muda somente os flags de desenho dos três sensores ray;
+os modelos fonte e todos os parâmetros físicos/de navegação permanecem iguais.
 
 ## 3. Depois de IMAGE_VALIDATED: bringup headless diagnóstico
 

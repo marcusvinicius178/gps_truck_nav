@@ -2,14 +2,20 @@
 
 Este modo abre os aplicativos reais dentro de uma sessão Xvfb privada e mostra seus pixels no navegador do `ipt-sim-01`, aproximadamente uma vez por segundo. Gazebo fica à esquerda; RViz, à direita. **Não existe canal de teclado/mouse, endpoint de goal, controle de modelo ou comando de movimento no visor.** Isso evita chamar de read-only um gzclient nativo, que normalmente oferece ferramentas capazes de alterar a simulação.
 
+**Atualização de 06/11/2026:** Marcus confirmou a primeira renderização real de
+Gazebo/RViz com Arocs e clock avançando. Para repetir somente o necessário com
+as correções de acesso/enquadramento e `candidate20kmh`, seguir o procedimento
+completo em [first_visual_adjustments.md](first_visual_adjustments.md). As seções
+abaixo conservam a interface geral dos comandos; a seleção é herdada do probe.
+
 O primeiro modo não oferece pan/zoom interativo. A câmera Gazebo é posicionada sobre o spawn do Arocs; RViz acompanha `base_footprint`. São mostrados modelo, frames, pose, scan, footprint e costmaps. Displays de trajetórias estão preparados, mas ficam vazios antes de planejamento autorizado; não enviar um objetivo apenas para preencher a tela. O MPPI 1.2.10 publica `MarkerArray` em `/trajectories` e `Path` em `/transformed_global_plan`, quando seu visualizador é usado; esta revisão não muda `visualize=false` para gerar dados. `/plan` é o caminho global. O scan pode não ter retornos finitos no cenário atual, e ausência de pontos não comprova falha nem sucesso de detecção.
 
 ## Isolamento e limites
 
-- Usa **a mesma imagem por ID, fonte e configuração canônica** do build/probe concluídos. Não conecta o adaptador prospectivo nem ativa os perfis 20/25 km/h.
+- Usa **a mesma imagem por ID, fonte e perfil** do build/probe concluídos, incluindo `candidate20kmh`. No candidato, seleciona seu mundo, URDF e configuração Nav2, além do adaptador shadow sem saída de atuação.
 - Container próprio com `network=none`, limites de CPU/RAM existentes, sem portas Docker, display do host, GPU, dispositivos, privilégios, socket Docker, host networking ou mounts de outros ambientes. Nenhum pacote é instalado no host ou acrescentado à imagem para esse modo.
 - HTTP é servido por Python stdlib **somente em 127.0.0.1**, com caminhos exatos e GET de página/imagem. Não encaminha entrada para X11/ROS/Gazebo. A URL de sessão é impressa pelo helper.
-- A única alteração no mundo visual é a inclusão de `<gui><camera>` em uma cópia da tentativa; `presentation_manifest.json` registra hashes e o conteúdo acrescentado. SDF do veículo, spawn, datum, física, ruído, BTs e parâmetros canônicos ficam intactos. A geometria da câmera é configuração de apresentação, não calibração.
+- O mundo visual acrescenta `<gui><camera>` numa cópia da tentativa. Outra cópia, em `presentation_models/`, muda somente `visualize` de 1 para 0 nos três sensores `ray`, ocultando os desenhos dos raios. Os sensores continuam habilitados; ranges, amostras, ruído, update rates, plugins e tópicos são preservados. `presentation_manifest.json` distingue os hashes do modelo fonte e da cópia efetivamente selecionada pela sessão. Originais, geometria, spawn, datum, física, BTs e parâmetros de navegação permanecem intactos.
 - O backend visual continua executando física e sensores, como o probe. O modo não congela a planta nem comprova imobilidade física; **nenhum objetivo ou comando de atuação é enviado pelo helper**. Não equivale a uma fronteira de segurança contra alguém que já possua acesso administrativo ao Docker.
 - Duração padrão 900 segundos, máximo 1800. Timeout, saída de aplicativo obrigatório ou sinal encerram a sessão. Containers e imagens anteriores são preservados. `Ctrl-C` em `serve` para somente o container identificado desta sessão; fechar a aba do navegador, sozinho, não para o container, que permanece sujeito ao prazo.
 
@@ -128,6 +134,6 @@ PY
 
 Aceitar somente o escopo de apresentação quando: ambas as janelas forem observadas, Arocs/meshes aparecerem, displays relevantes tiverem dados/TF coerentes, a física/clock continuarem observáveis, a coleta registrar os bloqueios reais, não houver canal de entrada no visor, e o cleanup identificar/parar a sessão correta. Tela vazia, erros de mesh/OpenGL/TF ou processo encerrado exigem preservar logs e investigação; não instalar drivers nem retunar sensores para mascará-los.
 
-O viewer deve recusar frames com heartbeat de sessão ausente, parado ou vencido; esse heartbeat mede vida da apresentação, não substitui `/clock`. Renderização ao vivo ainda precisa ser comprovada no `ipt-sim-01`. **Gate 0 e Gate 1 continuam NOT_YET_VERIFIED.** Seleção interativa de objetivo, cancelamento de ação e parada física serão habilitados somente em uma etapa posterior autorizada, após validação da atuação.
+O viewer deve recusar frames com heartbeat de sessão ausente, parado ou vencido; esse heartbeat mede vida da apresentação, não substitui `/clock`. A primeira renderização foi confirmada pelo usuário; o novo enquadramento, a ocultação dos raios e o acesso às evidências precisam da repetição no host. **Gate 0 e Gate 1 continuam NOT_YET_VERIFIED.** Seleção interativa de objetivo, cancelamento de ação e parada física serão habilitados somente em uma etapa posterior autorizada, após validação da atuação.
 
 Referências primárias: [Xvfb Jammy, framebuffer XWD](https://manpages.ubuntu.com/manpages/jammy/man1/Xvfb.1.html), [formato produzido por Xvfb](https://github.com/XQuartz/xorg-server/blob/master/hw/vfb/InitOutput.c), [GUI/câmera SDF 1.6](https://github.com/gazebosim/sdformat/blob/sdf9/sdf/1.6/gui.sdf), [tópicos de visualização MPPI 1.2.10](https://github.com/ros-navigation/navigation2/blob/1.2.10/nav2_mppi_controller/src/trajectory_visualizer.cpp). A presença desses mecanismos no source não substitui a execução e inspeção da imagem instalada.

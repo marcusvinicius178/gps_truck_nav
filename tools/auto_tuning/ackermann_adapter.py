@@ -11,6 +11,7 @@ from dataclasses import fields
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import time
 
@@ -270,6 +271,29 @@ def attach_subscriptions(node, observer, types, qos, *, input_topic, odom_topic,
             node.create_subscription(types['Odometry'], odom_topic, odom, qos)]
 
 
+def inherit_evidence_owner(fd, owner):
+    """Hand off only a newly created descriptor to its output parent's owner.
+
+    The bind-mounted parent was created by the host user. Reading its numeric
+    owner inside the container also respects the daemon's UID mapping; no
+    hard-coded username, recursive chown or access for other users is needed.
+    """
+    current = os.fstat(fd)
+    if (current.st_uid, current.st_gid) != owner:
+        os.fchown(fd, *owner)
+
+
+def private_evidence_file(path, owner):
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        inherit_evidence_owner(fd, owner)
+        os.fchmod(fd, 0o600)
+        return os.fdopen(fd, 'w')
+    except BaseException:
+        os.close(fd)
+        raise
+
+
 def run_shadow(model, policy_path, output_dir, *, duration=30.0, input_topic='/cmd_vel', odom_topic='/odom'):
     if not finite(duration) or not 1 <= duration <= 1800:
         raise ContractError('Duration must be finite within [1, 1800] wall seconds')
@@ -279,13 +303,21 @@ def run_shadow(model, policy_path, output_dir, *, duration=30.0, input_topic='/c
     policy, provenance = load_policy(policy_path)
     policy.validate(Geometry.from_static_audit(audit))
     output = Path(output_dir)
+    parent = output.parent.stat()
+    owner = (parent.st_uid, parent.st_gid)
     output.mkdir(mode=0o700, parents=False, exist_ok=False)
+    directory = os.open(output, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        inherit_evidence_owner(directory, owner)
+        os.fchmod(directory, 0o700)
+    finally:
+        os.close(directory)
     started = time.monotonic()
     node = None
     rclpy = None
     initialized = False
     status_error = None
-    with (output / 'shadow_commands.jsonl').open('x') as stream:
+    with private_evidence_file(output / 'shadow_commands.jsonl', owner) as stream:
         def emit(record):
             # Bound disk use even under unexpected high-rate producers; counters continue.
             if observer.counts['commands'] <= 10000:
@@ -331,11 +363,15 @@ def run_shadow(model, policy_path, output_dir, *, duration=30.0, input_topic='/c
         finally:
             result = observer.summary(time.monotonic())
             result.update(input_topic=input_topic, odom_topic=odom_topic, error=status_error)
+            result['evidence_access'] = {
+                'owner_uid': owner[0], 'owner_gid': owner[1],
+                'directory_mode': '0700', 'file_mode': '0600',
+                'policy': 'INHERIT_OUTPUT_PARENT_OWNER_NEW_FILES_ONLY'}
             if status_error:
                 result['status'] = 'SHADOW_INCOMPLETE'
             elif observer.unexpected_nonzero or observer.invalid_command_observed:
                 result['status'] = 'SHADOW_ABORTED_UNEXPECTED_INPUT'
-            with (output / 'shadow_summary.json').open('x') as summary:
+            with private_evidence_file(output / 'shadow_summary.json', owner) as summary:
                 json.dump(result, summary, indent=2, allow_nan=False)
                 summary.write('\n')
             if node is not None:

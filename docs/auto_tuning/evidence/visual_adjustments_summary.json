@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "base_commit": "b078c16467aa992ca7d6853207c9ad373c584619",
+  "scope": "FIRST_VISUAL_PRESENTATION_AND_PRIVATE_EVIDENCE_ACCESS_ONLY",
+  "tests": {
+    "passed": 425,
+    "failed": 0,
+    "scope": "OFFLINE_NO_DOCKER_OR_ROS"
+  },
+  "syntax_checks": {
+    "bash_fences": 31,
+    "embedded_python": 10
+  },
+  "protected_sha256": {
+    "docker/auto_tuning/Dockerfile": "3773cd9d25ef771b5dc44b564d9a0a01aa88ae8d55d45b57128edc934583f980",
+    "src/gps_truck_nav/truck_bringup/params/truck_nav2_params.yaml": "722169c640ac8a37c10ca1097ff212366bac7ae58ac2f596608bfc7a9454eef7",
+    "src/gps_truck_nav/truck_bringup/params/dual_ekf_navsat_params.yaml": "e73041ad33abff6f61b7d834910922d6af9936c234453bdbeedfac8c77a8f2d7",
+    "src/gps_truck_nav/truck_bringup/models/arocs_truck/model.sdf": "b8f8fc8b20a129694eed58bfd439c770e112a70fcf0e6da37bd9595f7e7ca8f2",
+    "src/gps_truck_nav/truck_bringup/urdf/arocs_truck.urdf": "863a35defbc79b75debb4e2650a874730c1bbd6dfd64c4b2a10f763778b7e3a1",
+    "config/auto_tuning/dual_ekf_navsat_gate0.yaml": "2a985fb4eb65f95c43d019c32014af313353fafee442c36abdee9d9b9d3245f9",
+    "config/auto_tuning/models/arocs_truck_tf_sensors/model.sdf": "5a389dd2b5e9703c0f44c657d8b06662865209a9d40870ce06f76b063f1c7da4",
+    "config/auto_tuning/worlds/ctvi_tf_sensors.world": "9094bd4df7d7f7472ebc0ba3a2dd8910af4a9bcf3e5fa4a5bca225f7df089dab",
+    "src/gps_truck_nav/truck_bringup/launch/gps_waypoint_follower.launch.py": "1dda7783e8f5e4ae0e8fd4f80760b69977f8e9d0638e6f97fd920bf320ccd7f9",
+    "src/gps_truck_nav/truck_bringup/launch/truck_simulation_launch.py": "2b4bb34a99ebb0e1a8e3b85d6acb51bec5c4a7147039f80478762b7466a9aac9",
+    "src/gps_truck_nav/truck_bringup/launch/navigation_launch.py": "3a6ef2acc3ca92db42144a80aca0292f517e7f4f713d916a8d8614e5f9993ae2",
+    "config/auto_tuning/behavior_trees/ackermann_navigate_to_pose.xml": "9b64b9b91d5549220a3b42fddc3250ba52b98377a132aa48393f3e6e126f0bd9",
+    "config/auto_tuning/behavior_trees/ackermann_navigate_through_poses.xml": "3ea4568a85b0f31e846de616d9904d40448219d5aab180bd48837a80a11e6331",
+    "config/auto_tuning/tf_sensor_model_variant.json": "6982f4314eece195de3cc318be07a2293ea249f2eace79a5ad96749eb12a53ba",
+    "config/auto_tuning/navigation_profiles/20kmh.yaml": "59a3323e87dbe6992b76bb9261340054a201d04f64370e58043c2e4a48fb388d",
+    "config/auto_tuning/navigation_profiles/25kmh.yaml": "8627399d8c03e9c28038ba90cf20ba01284d4292b93654edec31896ee857322b",
+    "config/auto_tuning/navigation_profiles/manifest.json": "6bca413b207587784a0125a17a859ce40bdeee5c7a1a5cc6fee6d885906506bb",
+    "tools/auto_tuning/actuation_contract.py": "4b1a75eb1c5c2e847b16345b0d5aa05880c3fe2849f201251c3cb9f5b6b021cf",
+    "tools/auto_tuning/audit_ackermann_geometry.py": "5b69acfa437c36c2d02bcec479c12f046945c6a251d4ed97a87d13d1dd7e1bb6",
+    "config/auto_tuning/plant_candidate/manifest.json": "ce352910dc712cee78c7d56e00919e63375acf7b241934482c09622abf7e7888",
+    "config/auto_tuning/plant_candidate/models/arocs_truck_candidate/model.config": "2b08eaa807415bd1e813535f4a99a76db8253a2f1219a773dc7a315fdfb3a51d",
+    "config/auto_tuning/plant_candidate/models/arocs_truck_candidate/model.sdf": "90be9aab8a892d2cc3256d8c74fd81ac8b61c351375e854426ef11feb87e49b0",
+    "config/auto_tuning/plant_candidate/navigation/candidate20kmh.yaml": "5214257a2f19c215d9b590efcdd03349d48614ee2825f42e9f250d6f952b9179",
+    "config/auto_tuning/plant_candidate/navigation/candidate25kmh.yaml": "439446f3cdc2bd8eeafef40c640f60e874f239467b798253d8db9d59a399f206",
+    "config/auto_tuning/plant_candidate/policies/candidate20kmh_shadow.json": "6ffbd886514ca6ebece67c2ca8b99e16a9757f08222a50d72b0dca9f38221c47",
+    "config/auto_tuning/plant_candidate/policies/candidate25kmh_shadow.json": "fa785be07a41bc90aad5d0a3a6d93423e32318931aa48a367070919abdb8db5f",
+    "config/auto_tuning/plant_candidate/urdf/arocs_truck_candidate.urdf": "c2389b29b8e758a816b2a6b0990de8e3a9b2f293ed4c992008b42114b4bc6cc6",
+    "config/auto_tuning/plant_candidate/worlds/ctvi_plant_candidate.world": "6509a3d6e4c2e64abdbd0ca14aa60ef7488e18b186ef0d692fa1de19aea5bf1e"
+  },
+  "host_reported_prior_result": {
+    "visualization": "Arocs rendered, Gazebo/RViz visible and clock advancing",
+    "probe": "FAILED on host PermissionError after SHADOW_COMPLETE in root-owned 0700 folder",
+    "source": "User report in current request, not a newly inspected archive"
+  },
+  "offline_permissions": "Root ownership simulated; real local uid 1000 file ownership/modes/readback checked",
+  "host_execution_required": [
+    "Fresh bind-mounted shadow evidence readable without sudo",
+    "Candidate20kmh graphical session profile consistency",
+    "Hidden ray drawings and improved camera/RViz framing",
+    "Sensor data liveness with original configurations preserved"
+  ],
+  "runtime_executed": false,
+  "motion_executed": false,
+  "actuator_output_connected": false,
+  "gate0": "NOT_YET_VERIFIED",
+  "gate1": "NOT_YET_VERIFIED"
+}

@@ -9,7 +9,7 @@ Visualization Manager:
       Enabled: true
       Alpha: 0.25
       Cell Size: 1
-      Plane Cell Count: 80
+      Plane Cell Count: 40
       Reference Frame: base_footprint
       Color: 150; 150; 150
     - Class: rviz_default_plugins/RobotModel
@@ -28,23 +28,27 @@ Visualization Manager:
     - Class: rviz_default_plugins/TF
       Name: Navigation and sensor frames
       Enabled: true
-      Show Arrows: true
+      Show Arrows: false
       Show Axes: true
-      Show Names: true
+      Show Names: false
       Marker Scale: 0.5
       Frames:
         All Enabled: false
         map:
-          Value: true
+          Value: false
         odom:
-          Value: true
+          Value: false
         base_footprint:
           Value: true
         base_link:
+          Value: false
+        rear_axle_nav:
           Value: true
         gps_link:
           Value: true
         imu_link:
+          Value: true
+        cloud:
           Value: true
     - Class: rviz_default_plugins/LaserScan
       Name: Sick scan
@@ -58,12 +62,12 @@ Visualization Manager:
       Position Transformer: XYZ
       Color Transformer: FlatColor
       Color: 255; 70; 70
-      Size (Pixels): 4
+      Size (Pixels): 3
       Style: Points
     - Class: rviz_default_plugins/Map
       Name: Global rolling costmap
       Enabled: true
-      Alpha: 0.35
+      Alpha: 0.12
       Color Scheme: costmap
       Topic:
         Value: /global_costmap/costmap
@@ -80,7 +84,7 @@ Visualization Manager:
     - Class: rviz_default_plugins/Map
       Name: Local rolling costmap
       Enabled: true
-      Alpha: 0.45
+      Alpha: 0.3
       Color Scheme: costmap
       Topic:
         Value: /local_costmap/costmap
@@ -107,7 +111,7 @@ Visualization Manager:
         History Policy: Keep Last
     - Class: rviz_default_plugins/Odometry
       Name: Global pose
-      Enabled: true
+      Enabled: false
       Keep: 1
       Position Tolerance: 0
       Angle Tolerance: 0
@@ -143,7 +147,7 @@ Visualization Manager:
         History Policy: Keep Last
     - Class: rviz_default_plugins/MarkerArray
       Name: MPPI trajectories (conditional on visualize)
-      Enabled: true
+      Enabled: false
       Topic:
         Value: /trajectories
         Depth: 5
@@ -164,7 +168,7 @@ Visualization Manager:
     Current:
       Class: rviz_default_plugins/Orbit
       Name: Truck observation
-      Distance: 45
+      Distance: 20
       Pitch: 0.6
       Yaw: 0.8
       Target Frame: base_footprint
