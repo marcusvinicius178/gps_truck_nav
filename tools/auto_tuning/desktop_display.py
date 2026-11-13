@@ -46,9 +46,18 @@ def private_file(path, uid):
         return data
 
 
-def authority_cookie(data, number, hostname):
-    """Read only the matching local MIT record; never export the source database."""
+def authority_cookie(data, number, hostname, *, metadata=None):
+    """Match libXau's local/number wildcards, but require one distinct secret.
+
+    GDM can write Local and Wild records with an empty number and the same
+    cookie. Unlike libXau's first-match tie break, different eligible secrets
+    are rejected regardless of order or apparent record specificity.
+    """
+    if not isinstance(number, str) or not re.fullmatch(r'[0-9]+', number):
+        raise DesktopError('Explicit selected X11 display number required')
     offset, matches = 0, set()
+    counts = dict.fromkeys(('matching_records', 'empty_number_records', 'exact_number_records',
+                           'local_records', 'wild_records'), 0)
     while offset < len(data):
         if offset + 2 > len(data):
             raise DesktopError('Malformed XAUTHORITY record')
@@ -66,11 +75,22 @@ def authority_cookie(data, number, hostname):
             offset += size
         address, display_number, name, cookie = fields
         if (family == 65535 or (family == 256 and address == hostname.encode())) and \
-                display_number == number.encode() and name == PROTOCOL and len(cookie) == 16:
+                display_number in (b'', number.encode()) and name == PROTOCOL and len(cookie) == 16:
             matches.add(cookie)
-    if len(matches) != 1:
-        raise DesktopError('Exactly one matching local MIT-MAGIC-COOKIE-1 credential is required')
-    return matches.pop()
+            counts['matching_records'] += 1
+            counts['empty_number_records' if not display_number else 'exact_number_records'] += 1
+            counts['local_records' if family == 256 else 'wild_records'] += 1
+    counts.update(unique_credentials=len(matches),
+                  duplicate_records=counts['matching_records'] - len(matches),
+                  selection_policy='REQUIRE_UNIQUE_MATCHING_CREDENTIAL')
+    if metadata is not None:
+        metadata.update(counts)  # Counts only: no bytes, encodings, hashes or fingerprints.
+    if not matches:
+        raise DesktopError('XAUTHORITY_NO_MATCHING_CREDENTIAL: matching_records=0, unique_credentials=0')
+    if len(matches) > 1:
+        raise DesktopError('XAUTHORITY_AMBIGUOUS_CREDENTIALS: '
+                           f"matching_records={counts['matching_records']}, unique_credentials={len(matches)}")
+    return next(iter(matches))
 
 
 def authority_record(number, cookie):
@@ -106,7 +126,9 @@ def inspect_host(environ=None, *, socket_directory=Path('/tmp/.X11-unix'), uid=N
     authority = Path(env.get('XAUTHORITY') or str(Path(env.get('HOME', '')).expanduser() / '.Xauthority'))
     if not authority.is_absolute():
         raise DesktopError('XAUTHORITY must have an absolute path')
-    cookie = authority_cookie(private_file(authority, uid), number, hostname or socket.gethostname())
+    authority_match = {}
+    cookie = authority_cookie(private_file(authority, uid), number, hostname or socket.gethostname(),
+                              metadata=authority_match)
     runtime = Path(env.get('XDG_RUNTIME_DIR', ''))
     if not runtime.is_absolute():
         raise DesktopError('XDG_RUNTIME_DIR must identify the private local user runtime directory')
@@ -116,6 +138,7 @@ def inspect_host(environ=None, *, socket_directory=Path('/tmp/.X11-unix'), uid=N
     metadata = {'display': display, 'display_number': number, 'socket_path': str(socket_path),
                 'xdg_session_type': session_type, 'wayland_display_present': bool(env.get('WAYLAND_DISPLAY')),
                 'xauthority_source': str(authority), 'runtime_directory': str(runtime),
+                'authority_match': authority_match,
                 'backend': 'XWAYLAND' if session_type == 'wayland' else 'X11'}
     return metadata, cookie
 

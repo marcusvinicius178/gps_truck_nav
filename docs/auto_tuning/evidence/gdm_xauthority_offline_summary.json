@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "base_commit": "3911c697bf270a4adc4b05e1fd7dcb15d38889f5",
+  "status": "OFFLINE_REGRESSIONS_PASS",
+  "test_command": "python3 -m unittest discover -s tests -v",
+  "tests": 684,
+  "failures": 0,
+  "errors": 0,
+  "skips": 0,
+  "new_regressions": 16,
+  "libxau_differential_executed": true,
+  "libxau_functions": [
+    "XauGetAuthByAddr",
+    "XauGetBestAuthByAddr"
+  ],
+  "credentials_in_tests": "SYNTHETIC_ONLY",
+  "runtime_definitions_changed": [
+    "authority_cookie",
+    "inspect_host"
+  ],
+  "runtime_definitions_unchanged": [
+    "DesktopError",
+    "DesktopSession",
+    "SecurityAttributes",
+    "XSecurity",
+    "Xauth",
+    "authority_record",
+    "guardian",
+    "main",
+    "private_file",
+    "read_ready"
+  ],
+  "protected_files_identical_to_base": [
+    "tools/auto_tuning/commissioning.py",
+    "tools/auto_tuning/commissioning_session.py",
+    "tools/auto_tuning/commissioning_adapter/adapter.cpp",
+    "tools/auto_tuning/commissioning_adapter/guard.hpp",
+    "tools/auto_tuning/commissioning_observer.py",
+    "tools/auto_tuning/commissioning_supervision.py",
+    "tools/auto_tuning/commissioning_source.py",
+    "tools/auto_tuning/desktop_windows.py",
+    "docker/auto_tuning/Dockerfile",
+    "config/auto_tuning/observation.rviz"
+  ],
+  "bash_blocks_syntax_checked": 1,
+  "selection_policy": "REQUIRE_UNIQUE_MATCHING_CREDENTIAL",
+  "secret_values_or_fingerprints_logged": false,
+  "host_reported_environment": {
+    "hostname": "ipt-sim-01",
+    "display": ":1",
+    "xdg_session_type": "x11",
+    "authority_records": 2,
+    "empty_display_numbers": 2,
+    "credential_equality": "NOT_YET_VERIFIED_ON_HOST"
+  },
+  "next_host_step": "desktop_display.py diagnose ONLY",
+  "next_host_acceptance": "DISPLAY_DIAGNOSTIC_PASS",
+  "real_display_opened": false,
+  "docker_started": false,
+  "ros_started": false,
+  "movement_executed": false,
+  "operational_authorization_created": false,
+  "mission_ready": false,
+  "gate0": "NOT_YET_VERIFIED",
+  "gate1": "NOT_YET_VERIFIED"
+}
