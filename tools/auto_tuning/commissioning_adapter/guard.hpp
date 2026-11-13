@@ -50,6 +50,8 @@ struct Limits
   double clock_stall = 1.0, lease_timeout = 0.5;
   double observed_speed = 0.7, observed_yaw = 0.05, observed_steer = 0.25;
   double standstill_dwell = 1.0, future_stamp_tolerance = 0.1;
+  // Wall-time scheduling budget before arming; never expands the simulated-time window.
+  double clock_sync_timeout = 0.1;
   double max_travel = 10.0, max_displacement = 10.0;
 };
 
@@ -140,6 +142,9 @@ public:
   double speed = 0, lateral_speed = 0, yaw_rate = 0, left = 0, right = 0;
   double travel = 0, displacement = 0;
   unsigned long command_count = 0, rejected_count = 0, stop_count = 0;
+  bool clock_sync_pending = false;
+  double clock_sync_started = absent;
+  unsigned long clock_sync_episodes = 0, clock_sync_recoveries = 0;
   Conversion last;
 
   void fault(const std::string & reason)
@@ -229,12 +234,6 @@ public:
       !fresh(odom.progressed, now, limits.observation_timeout)) {return "ODOMETRY_STALE_OR_FROZEN";}
     if (!fresh(joints.received, now, limits.observation_timeout) ||
       !fresh(joints.progressed, now, limits.observation_timeout)) {return "JOINT_STATES_STALE_OR_FROZEN";}
-    for (double stamp : {odom.stamp, joints.stamp}) {
-      const double age = clock.stamp - stamp;
-      if (!finite(age) || age < -limits.future_stamp_tolerance || age >= limits.observation_timeout) {
-        return "SENSOR_STAMP_OUTSIDE_CLOCK_WINDOW";
-      }
-    }
     if (!fresh(graph_at_, now, limits.observation_timeout) ||
       !(graph_valid_ || (allow_waiting_source && graph_observations_valid_))) {
       return graph_reason_.empty() ? "COMMAND_GRAPH_STALE" : graph_reason_;
@@ -254,6 +253,13 @@ public:
       (std::hypot(speed, lateral_speed) > limits.stop_band || std::abs(yaw_rate) > 0.005)) {
       return "UNEXPECTED_MOVEMENT_IN_READ_ONLY_PREPARATION";
     }
+    // Evaluate all independent protections before considering callback reconciliation.
+    for (double stamp : {odom.stamp, joints.stamp}) {
+      const double age = clock.stamp - stamp;
+      if (!finite(age) || age < -limits.future_stamp_tolerance || age >= limits.observation_timeout) {
+        return "SENSOR_STAMP_OUTSIDE_CLOCK_WINDOW";
+      }
+    }
     return {};
   }
 
@@ -268,14 +274,46 @@ public:
 
   bool observations_ready(double now, double lease) const
   {
-    return state != "FAULT" && health(now, lease, true).empty() && standstill_observed(now);
+    return state != "FAULT" && !clock_sync_pending &&
+      health(now, lease, true).empty() && standstill_observed(now);
   }
 
   void poll(double now, double lease)
   {
     if (state == "FAULT") {return;}
     const auto reason = health(now, lease);
+    const auto observation_reason = health(now, lease, true);
     last_now_ = now;
+    if (state != "ARMED") {
+      const bool future_only = observation_reason == "SENSOR_STAMP_OUTSIDE_CLOCK_WINDOW" &&
+        future_only_mismatch();
+      if (clock_sync_pending) {
+        // Other faults retain their normal strictness even while callbacks catch up.
+        if (!observation_reason.empty() && !future_only) {fault(observation_reason); return;}
+        // Check expiry BEFORE accepting even an apparently coherent late snapshot.
+        if (!fresh(clock_sync_started, now, limits.clock_sync_timeout)) {
+          fault("SENSOR_CLOCK_SYNC_TIMEOUT"); return;
+        }
+        if (observation_reason.empty()) {
+          clock_sync_pending = false; ++clock_sync_recoveries;
+          standstill_since_ = absent; standstill_stamp_ = absent; last_zero_ = absent;
+        }
+      } else if (future_only) {
+        clock_sync_pending = true; ++clock_sync_episodes;
+        clock_sync_started = std::numeric_limits<double>::infinity();
+        for (const Timed * sensor : {&odom, &joints}) {
+          if (clock.stamp - sensor->stamp < -limits.future_stamp_tolerance) {
+            clock_sync_started = std::min(clock_sync_started, sensor->received);
+          }
+        }
+        // Requalify standstill and explicit zero; never retain pre-mismatch arming credit.
+        standstill_since_ = absent; standstill_stamp_ = absent; last_zero_ = absent;
+        if (!fresh(clock_sync_started, now, limits.clock_sync_timeout)) {
+          fault("SENSOR_CLOCK_SYNC_TIMEOUT"); return;
+        }
+      }
+      if (clock_sync_pending) {waiting_reason = "SENSOR_CLOCK_SYNC_PENDING"; return;}
+    }
     if (!reason.empty()) {
       waiting_reason = reason;
       // A valid independent lease is mandatory even during discovery/warmup.
@@ -330,6 +368,18 @@ public:
   }
 
 private:
+  bool future_only_mismatch() const
+  {
+    bool future = false;
+    for (double stamp : {odom.stamp, joints.stamp}) {
+      const double age = clock.stamp - stamp;
+      // An old/invalid sample cannot borrow the clock reconciliation budget.
+      if (!finite(age) || age >= limits.observation_timeout) {return false;}
+      future |= age < -limits.future_stamp_tolerance;
+    }
+    return future;
+  }
+
   bool execute_, have_graph_ = false, graph_valid_ = false, held_ = true;
   bool have_destination_ = false, graph_observations_valid_ = false;
   bool have_origin_ = false, have_position_ = false;

@@ -5,6 +5,10 @@ Estado: implementação e regressões offline aprovadas; validação real no Iro
 ipt-sim-01 ainda pendente. Nenhum movimento autorizado por esta entrega.
 Gate 0 e Gate 1 continuam `NOT_YET_VERIFIED`; `mission_ready=false`.
 
+Continuação após o resultado real de `dfdc528`: usar o procedimento completo
+de [sincronização temporal e nova validação sem movimento](clock_sync_read_only_validation.md).
+O relatório abaixo preserva a implementação e os resultados offline da entrega R1.
+
 ## Causa e correção
 
 O observer instalava seus handlers e depois chamava `rclpy.init()` com opções

@@ -28,6 +28,18 @@ TOOLS = Path('/opt/auto_tuning/tools')
 CONFIG = Path('/opt/auto_tuning/config')
 
 
+def read_only_adapter_ready(record):
+    """READY phase alone is insufficient during clock reconciliation/requalification."""
+    return (record.get('state') == 'READY_READ_ONLY'
+            and record.get('observations_ready') is True
+            and record.get('clock_sync_pending') is False)
+
+
+def require_read_only_completion(record):
+    if not read_only_adapter_ready(record):
+        raise RuntimeError('PREPARATION_ENDED_WITHOUT_COHERENT_OBSERVATIONS')
+
+
 def adapter_arguments(manifest, model, *, evidence=EVIDENCE):
     audit = audit_model(model)
     if audit['source']['sha256'] != manifest['model_sha256']:
@@ -208,8 +220,6 @@ def main():
                     raise RuntimeError('CANCELLATION_IDENTITY_MISMATCH')
                 reason = 'OPERATOR_OR_HOST_STOP'
                 break
-            if now - started >= duration:
-                break
             if not safety.read_lease(EVIDENCE / 'host.lease'):
                 raise RuntimeError('HOST_LEASE_EXPIRED')
             exited = [name for name, proc in processes.items() if proc.poll() is not None]
@@ -230,6 +240,10 @@ def main():
             elif now > first_heartbeat_deadline:
                 raise RuntimeError('OBSERVER_HEARTBEAT_MISSING')
             fault_component = 'session'
+            if now - started >= duration:
+                if manifest['mode'] == 'prepare' and manifest.get('fault_drill', 'none') == 'none':
+                    require_read_only_completion(adapter_record)
+                break
             operator_start = EVIDENCE / 'operator_start.json'
             start_authorized = False
             if operator_start.is_file():
@@ -266,7 +280,7 @@ def main():
                 elif now > source_deadline:
                     raise RuntimeError('SOURCE_HEARTBEAT_MISSING')
                 fault_component = 'session'
-            ready = bool(gui['gui_ready'] and telemetry_ready and adapter_record.get('state') == 'READY_READ_ONLY')
+            ready = bool(gui['gui_ready'] and telemetry_ready and read_only_adapter_ready(adapter_record))
             sequence += 1
             safety.atomic_private(EVIDENCE / 'guard_heartbeat.json', {
                 'run_id': manifest['run_id'], 'seq': sequence, 'monotonic_s': now,

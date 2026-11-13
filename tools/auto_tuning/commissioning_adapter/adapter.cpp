@@ -57,6 +57,24 @@ std::string number(double x)
   std::ostringstream out; out << std::setprecision(17) << x; return out.str();
 }
 
+// Per-process callback snapshots, not DDS arrival times or cross-topic transactions.
+std::string temporal_snapshot(const commissioning::Guard & guard)
+{
+  return "\"clock_s\":" + number(guard.clock.stamp) +
+    ",\"odom_stamp_s\":" + number(guard.odom.stamp) +
+    ",\"joint_stamp_s\":" + number(guard.joints.stamp) +
+    ",\"clock_callback_monotonic_s\":" + number(guard.clock.received) +
+    ",\"odom_callback_monotonic_s\":" + number(guard.odom.received) +
+    ",\"joint_callback_monotonic_s\":" + number(guard.joints.received) +
+    ",\"clock_minus_odom_s\":" + number(guard.clock.stamp - guard.odom.stamp) +
+    ",\"clock_minus_joint_s\":" + number(guard.clock.stamp - guard.joints.stamp) +
+    ",\"clock_sync_pending\":" + (guard.clock_sync_pending ? "true" : "false") +
+    ",\"clock_sync_started_monotonic_s\":" + number(guard.clock_sync_started) +
+    ",\"clock_sync_deadline_monotonic_s\":" + number(guard.clock_sync_started + guard.limits.clock_sync_timeout) +
+    ",\"clock_sync_episodes\":" + std::to_string(guard.clock_sync_episodes) +
+    ",\"clock_sync_recoveries\":" + std::to_string(guard.clock_sync_recoveries);
+}
+
 template<typename Iterator> std::string gid_hex(Iterator first, Iterator last)
 {
   std::ostringstream out;
@@ -213,8 +231,7 @@ int main(int argc, char ** argv)
         ",\"rejected_count\":" + std::to_string(guard->rejected_count) +
         ",\"input_gid\":" + quote(guard->input_gid) + ",\"output_gid\":" + quote(guard->output_gid) +
         ",\"subscriber_gid\":" + quote(guard->subscriber_gid) +
-        ",\"clock_s\":" + number(guard->clock.stamp) + ",\"odom_stamp_s\":" + number(guard->odom.stamp) +
-        ",\"joint_stamp_s\":" + number(guard->joints.stamp) +
+        "," + temporal_snapshot(*guard) +
         ",\"observed_speed_mps\":" + number(guard->speed) +
         ",\"observed_rear_lateral_speed_mps\":" + number(guard->lateral_speed) +
         ",\"observed_yaw_rate_rps\":" + number(guard->yaw_rate) +
@@ -265,6 +282,7 @@ int main(int argc, char ** argv)
       "\"observed_speed_mps\":0.7,\"observed_yaw_rate_rps\":0.05,\"observed_joint_rad\":0.25,"
       "\"command_timeout_s\":0.25,\"observation_timeout_s\":0.5,\"lease_timeout_s\":0.5,"
       "\"clock_stall_s\":1.0,\"clock_forward_jump_s\":0.25,\"sensor_future_window_s\":0.1,"
+      "\"pre_arm_clock_sync_timeout_wall_s\":0.1,"
       "\"standstill_dwell_wall_s\":1.0,\"standstill_stamp_progress_s\":0.5,"
       "\"max_travel_m\":10.0,\"max_displacement_m\":10.0}}");
     if (execute) {
@@ -350,6 +368,7 @@ int main(int argc, char ** argv)
     }
     double next_graph = 0, next_heartbeat = 0;
     std::string prior_graph, prior_state;
+    unsigned long prior_sync_episodes = 0, prior_sync_recoveries = 0;
     heartbeat();
     while (rclcpp::ok() && guard->state != "FAULT") {
       rclcpp::spin_some(node);
@@ -398,6 +417,14 @@ int main(int argc, char ** argv)
       }
       const auto snapshot = commissioning::lease_snapshot([&]() {return read_lease(lease_path);}, monotonic);
       guard->poll(snapshot.now, snapshot.lease);
+      if (guard->clock_sync_episodes != prior_sync_episodes ||
+        guard->clock_sync_recoveries != prior_sync_recoveries || guard->state == "FAULT") {
+        evidence->event("{\"event\":\"CLOCK_SYNC\",\"monotonic_s\":" + number(snapshot.now) +
+          ",\"state\":" + quote(guard->state) + ",\"fault\":" + quote(guard->fault_reason) +
+          "," + temporal_snapshot(*guard) + "}");
+        prior_sync_episodes = guard->clock_sync_episodes;
+        prior_sync_recoveries = guard->clock_sync_recoveries;
+      }
       if (guard->state != prior_state) {
         evidence->event("{\"event\":\"STATE\",\"monotonic_s\":" + number(now) +
           ",\"state\":" + quote(guard->state) + ",\"reason\":" + quote(guard->fault_reason) + "}");
