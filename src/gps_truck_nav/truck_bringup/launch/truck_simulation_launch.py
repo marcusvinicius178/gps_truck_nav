@@ -1,21 +1,33 @@
 """Gazebo and robot state only; localization and Navigation2 are separate."""
 
 import os
+from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction, SetEnvironmentVariable
 from launch.conditions import IfCondition
 from launch.substitutions import EnvironmentVariable, LaunchConfiguration
 from launch_ros.actions import Node
 
 
+def robot_state_publisher(context):
+    # Resolve the explicit prospective URDF at launch time, without shell/xacro
+    # execution. The default retains the canonical historical description.
+    path = Path(LaunchConfiguration('robot_description_file').perform(context))
+    robot_description = path.read_text(encoding='utf-8')
+    return [Node(
+        package='robot_state_publisher', executable='robot_state_publisher',
+        name='robot_state_publisher', output='screen',
+        parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time'),
+                     'robot_description': robot_description}])]
+
+
 def generate_launch_description():
     bringup_dir = get_package_share_directory('truck_bringup')
-    with open(os.path.join(bringup_dir, 'urdf', 'arocs_truck.urdf'), encoding='utf-8') as stream:
-        robot_description = stream.read()
     return LaunchDescription([
         DeclareLaunchArgument('world', default_value=os.path.join(bringup_dir, 'worlds', 'empty_ground.world')),
+        DeclareLaunchArgument('robot_description_file', default_value=os.path.join(bringup_dir, 'urdf', 'arocs_truck.urdf')),
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('use_gzclient', default_value='true'),
         DeclareLaunchArgument('use_rviz', default_value='false'),
@@ -39,9 +51,5 @@ def generate_launch_description():
             arguments=['-d', os.path.join(bringup_dir, 'rviz', 'truck.rviz')],
             parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}],
             condition=IfCondition(LaunchConfiguration('use_rviz'))),
-        Node(
-            package='robot_state_publisher', executable='robot_state_publisher',
-            name='robot_state_publisher', output='screen',
-            parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time'),
-                         'robot_description': robot_description}]),
+        OpaqueFunction(function=robot_state_publisher),
     ])

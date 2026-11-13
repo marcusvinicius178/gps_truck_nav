@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "mode": "SHADOW_ONLY",
+  "profile_id": "candidate20kmh",
+  "status": "SHADOW_DIAGNOSTIC_POLICY",
+  "policy": {
+    "forward_speed_mps": 5.555555555555555,
+    "reverse_speed_mps": 0.0,
+    "yaw_rate_rps": 0.4,
+    "stop_band_mps": 0.01,
+    "resume_speed_mps": 0.02,
+    "command_timeout_s": 0.25,
+    "observation_timeout_s": 0.5,
+    "clock_stall_timeout_s": 1.0,
+    "speed_policy": "REJECT"
+  },
+  "rationale": {
+    "speed": "Requested 20/25 km/h experimental ceilings; no demonstrated cruise or safety rating.",
+    "reverse": "Forward-only first navigation profile; reverse converter remains an offline contract pending plant tests.",
+    "stop_resume": "Explicit numerical diagnostic thresholds, not measured standstill accuracy or stopping capability.",
+    "command_timeout": "Five nominal 20 Hz smoother periods; wall-clock instrumentation proposal, not a validated destination watchdog.",
+    "observation_and_clock": "Wall-clock diagnostic deadlines; must be evaluated against observed load, never interpreted as physical braking proof."
+  },
+  "runtime_authorized": false,
+  "physical_stop_verified": false
+}

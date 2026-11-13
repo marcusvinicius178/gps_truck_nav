@@ -1,0 +1,33 @@
+repository structural audit: exit=0
+CHECK YAML (unique keys): 15
+CHECK Python/launch syntax: 51
+CHECK XML syntax: 35
+CHECK unique canonical packages: 3
+CHECK installed Python entry points: 8
+CHECK world/waypoint site consistency (not alignment or runtime): 1
+CHECK required mesh references: 9
+PASS: structural audit
+
+tools/auto_tuning/validate_image.sh: exit=0
+
+tools/auto_tuning/collect_runtime_evidence.sh: exit=0
+
+runbook Bash block 1: exit=0
+
+runbook Bash block 2: exit=0
+
+runbook Bash block 3: exit=0
+
+runbook Bash block 4: exit=0
+
+runbook Bash block 5: exit=0
+
+Image validator embedded Python: PASS (compile only)
+
+New Python files: PASS (compile only)
+
+Four protected canonical navigation/localization/SDF/URDF hashes unchanged: PASS
+
+git diff --check: exit=0
+
+analysis worktree untouched: exit=0

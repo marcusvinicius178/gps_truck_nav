@@ -1,0 +1,250 @@
+$ /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/audit_repository.py
+CHECK XML syntax: 40
+CHECK YAML (unique keys): 15
+CHECK Python/launch syntax: 75
+CHECK unique canonical packages: 3
+CHECK installed Python entry points: 8
+CHECK world/waypoint site consistency (not alignment or runtime): 1
+CHECK required mesh references: 9
+PASS: structural audit
+exit_code=0
+PASS: compile all auto_tuning Python tools
+$ bash -n /workspace/scratch/2da6652f4afb/gps_truck_nav_review2/tools/auto_tuning/validate_image.sh
+
+exit_code=0
+$ bash -n /workspace/scratch/2da6652f4afb/gps_truck_nav_review2/tools/auto_tuning/collect_runtime_evidence.sh
+
+exit_code=0
+PASS: embedded Python in validation/collection scripts
+PASS: 12 runbook Bash blocks, 4 embedded Python blocks (syntax only; host commands not executed)
+UNCHANGED src/gps_truck_nav/truck_bringup/params/truck_nav2_params.yaml 722169c640ac8a37c10ca1097ff212366bac7ae58ac2f596608bfc7a9454eef7
+UNCHANGED src/gps_truck_nav/truck_bringup/params/dual_ekf_navsat_params.yaml e73041ad33abff6f61b7d834910922d6af9936c234453bdbeedfac8c77a8f2d7
+UNCHANGED src/gps_truck_nav/truck_bringup/models/arocs_truck/model.sdf b8f8fc8b20a129694eed58bfd439c770e112a70fcf0e6da37bd9595f7e7ca8f2
+UNCHANGED src/gps_truck_nav/truck_bringup/urdf/arocs_truck.urdf 863a35defbc79b75debb4e2650a874730c1bbd6dfd64c4b2a10f763778b7e3a1
+PASS: all 8 launch/BT files identical to 978ab23
+PASS: analysis repository unchanged and clean
+$ git diff --check
+
+exit_code=0
+$ /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/auto_tuning/validate_model_variant.py --repo /workspace/scratch/2da6652f4afb/gps_truck_nav_review2
+{"schema_version": 1, "status": "MODEL_VARIANT_VALIDATED", "scope": "STATIC_ASSET_AND_METADATA_CONTRACT_ONLY", "runtime_verified": false, "mission_ready": false, "gate0": "NOT_YET_VERIFIED", "gate1": "NOT_YET_VERIFIED", "observations": {"profile_id": "arocs_tf_sensor_frames_v1", "manifest_sha256": "6982f4314eece195de3cc318be07a2293ea249f2eace79a5ad96749eb12a53ba", "canonical_sha256": {"models/arocs_truck/model.sdf": "b8f8fc8b20a129694eed58bfd439c770e112a70fcf0e6da37bd9595f7e7ca8f2", "models/arocs_truck/model.config": "2b08eaa807415bd1e813535f4a99a76db8253a2f1219a773dc7a315fdfb3a51d", "worlds/ctvi.world": "f33f9c7ad7be1ec785edbff5e6229a22515ac9fdd84c019fd5c8c8661a86e61f", "urdf/arocs_truck.urdf": "863a35defbc79b75debb4e2650a874730c1bbd6dfd64c4b2a10f763778b7e3a1"}, "variant_sha256": {"models/arocs_truck_tf_sensors/model.sdf": "5a389dd2b5e9703c0f44c657d8b06662865209a9d40870ce06f76b063f1c7da4", "models/arocs_truck_tf_sensors/model.config": "2b08eaa807415bd1e813535f4a99a76db8253a2f1219a773dc7a315fdfb3a51d", "worlds/ctvi_tf_sensors.world": "9094bd4df7d7f7472ebc0ba3a2dd8910af4a9bcf3e5fa4a5bca225f7df089dab"}, "model_name": "arocs_truck", "sensor_lever_arms": {"gps_link": {"sensor": "arocs_gps", "parent": "base_footprint", "translation_m": [3.8205, 0.0, 3.062], "rpy_rad": [0.0, -0.0, 0.0]}, "imu_link": {"sensor": "imu_sensor", "parent": "base_footprint", "translation_m": [3.7205, 0.0, 2.595], "rpy_rad": [0.0, -0.0, 0.0]}}, "expected_wheel_edges": [{"joint_name": "front_right_steer_joint", "parent": "first_shaft_horizontal_shaft_link", "child": "front_right_steering_link", "expected_publisher": "robot_state_publisher"}, {"joint_name": "front_left_steer_joint", "parent": "first_shaft_horizontal_shaft_link", "child": "front_left_steering_link", "expected_publisher": "robot_state_publisher"}, {"joint_name": "first_wheel_left_joint", "parent": "front_left_steering_link", "child": "first_wheel_left_link", "expected_publisher": "robot_state_publisher"}, {"joint_name": "first_wheel_right_joint", "parent": "front_right_steering_link", "child": "first_wheel_right_link", "expected_publisher": "robot_state_publisher"}, {"joint_name": "fourth_wheel_left_joint", "parent": "fourth_shaft_horizontal_shaft_link", "child": "fourth_wheel_left_link", "expected_publisher": "robot_state_publisher"}, {"joint_name": "fourth_wheel_right_joint", "parent": "fourth_shaft_horizontal_shaft_link", "child": "fourth_wheel_right_link", "expected_publisher": "robot_state_publisher"}], "joint_names": ["front_right_steer_joint", "front_left_steer_joint", "first_wheel_left_joint", "first_wheel_right_joint", "fourth_wheel_left_joint", "fourth_wheel_right_joint"], "canonical_mesh_references_checked": 9}}
+exit_code=0
+$ /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3 tools/auto_tuning/audit_ackermann_geometry.py config/auto_tuning/models/arocs_truck_tf_sensors/model.sdf --requested-turning-radius 11.6 --output /workspace/scratch/2da6652f4afb/gps_truck_nav_review2/docs/auto_tuning/evidence/second_review_ackermann_static.json
+{
+  "schema_version": 1,
+  "status": "STATIC_MODEL_AUDITED",
+  "scope": "INITIAL_SDF_COLLISION_GEOMETRY_AND_UPSTREAM_EQUATIONS_ONLY",
+  "source": {
+    "path": "config/auto_tuning/models/arocs_truck_tf_sensors/model.sdf",
+    "sha256": "5a389dd2b5e9703c0f44c657d8b06662865209a9d40870ce06f76b063f1c7da4"
+  },
+  "upstream": {
+    "repository": "ros-simulation/gazebo_ros_pkgs",
+    "ref": "3.7.0",
+    "path": "gazebo_plugins/src/gazebo_ros_ackermann_drive.cpp",
+    "blob_sha": "8f536598f837acef619337f4b72b626e7021dfa8",
+    "url": "https://github.com/ros-simulation/gazebo_ros_pkgs/blob/3.7.0/gazebo_plugins/src/gazebo_ros_ackermann_drive.cpp"
+  },
+  "model": "arocs_truck",
+  "sdf_version": "1.7",
+  "wheels": {
+    "front_left_joint": {
+      "joint": "first_wheel_left_joint",
+      "child_link": "first_wheel_left_link",
+      "collision": "first_wheel_left_link_collision",
+      "collision_center_model_m": [
+        3.302,
+        1.299,
+        0.535
+      ],
+      "collision_radius_m": 0.536
+    },
+    "front_right_joint": {
+      "joint": "first_wheel_right_joint",
+      "child_link": "first_wheel_right_link",
+      "collision": "first_wheel_right_link_collision",
+      "collision_center_model_m": [
+        3.326999999999831,
+        -1.2989999081698724,
+        0.535
+      ],
+      "collision_radius_m": 0.536
+    },
+    "rear_left_joint": {
+      "joint": "fourth_wheel_left_joint",
+      "child_link": "fourth_wheel_left_link",
+      "collision": "fourth_wheel_left_link_collision",
+      "collision_center_model_m": [
+        -3.502,
+        1.299,
+        0.536
+      ],
+      "collision_radius_m": 0.536
+    },
+    "rear_right_joint": {
+      "joint": "fourth_wheel_right_joint",
+      "child_link": "fourth_wheel_right_link",
+      "collision": "fourth_wheel_right_link_collision",
+      "collision_center_model_m": [
+        -3.502,
+        -1.299,
+        0.536
+      ],
+      "collision_radius_m": 0.536
+    }
+  },
+  "front_axle_center_model_m": [
+    3.3144999999999154,
+    4.5915063751067464e-08,
+    0.535
+  ],
+  "rear_axle_center_model_m": [
+    -3.502,
+    0.0,
+    0.536
+  ],
+  "wheelbase_euclidean_m": 6.8165000733513414,
+  "front_track_euclidean_m": 2.5981201902242046,
+  "rear_right_radius_m": 0.536,
+  "plugin_max_speed_mps": 20.0,
+  "plugin_max_steer_rad": 0.6458,
+  "steering_joint_limits": {
+    "left": {
+      "joint": "front_left_steer_joint",
+      "child_link": "front_left_steering_link",
+      "lower_rad": -0.524,
+      "upper_rad": 0.524,
+      "axis_model": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "right": {
+      "joint": "front_right_steer_joint",
+      "child_link": "front_right_steering_link",
+      "lower_rad": -0.524,
+      "upper_rad": 0.524,
+      "axis_model": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  },
+  "targets_at_plugin_max_steer_rad": {
+    "positive": {
+      "left": 0.7216428186006472,
+      "right": 0.5826482087500514
+    },
+    "negative": {
+      "left": -0.5826482087500514,
+      "right": -0.7216428186006472
+    }
+  },
+  "plugin_max_steer_joint_limit_violations": [
+    {
+      "direction": "positive",
+      "joint": "front_left_steer_joint",
+      "target_rad": 0.7216428186006472,
+      "limits": {
+        "joint": "front_left_steer_joint",
+        "child_link": "front_left_steering_link",
+        "lower_rad": -0.524,
+        "upper_rad": 0.524,
+        "axis_model": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "direction": "positive",
+      "joint": "front_right_steer_joint",
+      "target_rad": 0.5826482087500514,
+      "limits": {
+        "joint": "front_right_steer_joint",
+        "child_link": "front_right_steering_link",
+        "lower_rad": -0.524,
+        "upper_rad": 0.524,
+        "axis_model": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "direction": "negative",
+      "joint": "front_left_steer_joint",
+      "target_rad": -0.5826482087500514,
+      "limits": {
+        "joint": "front_left_steer_joint",
+        "child_link": "front_left_steering_link",
+        "lower_rad": -0.524,
+        "upper_rad": 0.524,
+        "axis_model": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "direction": "negative",
+      "joint": "front_right_steer_joint",
+      "target_rad": -0.7216428186006472,
+      "limits": {
+        "joint": "front_right_steer_joint",
+        "child_link": "front_right_steering_link",
+        "lower_rad": -0.524,
+        "upper_rad": 0.524,
+        "axis_model": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      }
+    }
+  ],
+  "conservative_symmetric_virtual_bound_rad": 0.4799568628770338,
+  "conservative_ideal_rear_axle_minimum_radius_m": 13.094652363938684,
+  "requested_turning_radius_m": 11.6,
+  "requested_virtual_steer_rad": 0.5312737488497491,
+  "requested_radius_fits_static_joint_bound": false,
+  "base_frame": "base_footprint",
+  "base_origin_model_m": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "base_origin_minus_rear_axle_model_m": [
+    3.502,
+    0.0,
+    -0.536
+  ],
+  "front_left_minus_right_x_m": -0.024999999999831157,
+  "runtime_binary_verified": false,
+  "runtime_geometry_validated": false,
+  "motion_authorized": false,
+  "gate0": "NOT_YET_VERIFIED",
+  "gate1": "NOT_YET_VERIFIED",
+  "limitations": [
+    "Distances reproduce initial SDF poses; they are not measured loaded Gazebo collision centers.",
+    "A common rigid world spawn pose does not change distances; joint dynamics and contact still require validation.",
+    "The nonrectangular front axle and base origin offset require model/reference-point review.",
+    "The conservative bound is an offline equation result, not a replacement vehicle limit.",
+    "No parameter, model, datum, actuator or command topic is changed by this audit."
+  ]
+}
+exit_code=0
+LIMIT: No Docker/ROS/Gazebo runtime or ROS C++ adapter compiled here; unit tests compile only dependency-free C++ cores.
+
+FINAL STAGED WHITESPACE AUDIT
+config/auto_tuning/worlds/ctvi_tf_sensors.world:16: trailing whitespace.
++      therefore we rotate the default frame 180 so that it would go back to ENU 
+config/auto_tuning/worlds/ctvi_tf_sensors.world:17: trailing whitespace.
++      see: https://github.com/osrf/gazebo/issues/2022 --> 
+Only two inherited trailing spaces in the complete world copy. Exact canonical bytes preserved except the model URI, as required by the variant contract. No whitespace policy/configuration changed.
+PASS: staged whitespace audit excluding those inherited end-of-line spaces.

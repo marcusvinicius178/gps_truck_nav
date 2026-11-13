@@ -1,0 +1,15 @@
+# Dockerfile-specific ignore overrides the root dependency-only build context.
+**
+!entrypoint.sh
+!src/
+!src/gps_truck_nav/
+!src/gps_truck_nav/truck_bringup/
+!src/gps_truck_nav/truck_bringup/**
+!config/
+!config/auto_tuning/
+!config/auto_tuning/**
+!tools/
+!tools/auto_tuning/
+!tools/auto_tuning/**
+**/__pycache__/
+**/*.pyc

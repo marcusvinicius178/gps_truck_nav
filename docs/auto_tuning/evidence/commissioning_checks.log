@@ -1,0 +1,17 @@
+$ python3 tools/audit_repository.py
+CHECK XML syntax: 44
+CHECK YAML (unique keys): 20
+CHECK Python/launch syntax: 101
+CHECK unique canonical packages: 3
+CHECK installed Python entry points: 8
+CHECK world/waypoint site consistency (not alignment or runtime): 1
+CHECK required mesh references: 9
+PASS: structural audit
+
+$ git diff --check
+
+PASS markdown syntax: 45 Bash blocks, 11 embedded Python blocks
+
+PASS unchanged protected files: 75; hydrated LFS bytes match committed OIDs
+
+No Docker/ROS/Gazebo runtime or motion executed; Python fixtures and pure C++ only

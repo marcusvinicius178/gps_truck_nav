@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-29",
+  "integration_base": "19f38e535bebc8a03a6aeef75c29160e0524668b",
+  "analysis_commit": "36ba76823cc7a124540412cf3ce09c73e6cd1d05",
+  "analysis_worktree_clean": true,
+  "host_observed": {
+    "system": "Linux",
+    "kernel": "6.18.55",
+    "architecture": "x86_64",
+    "os_release": {
+      "ID": "ubuntu",
+      "VERSION_ID": "24.04",
+      "PRETTY_NAME": "Ubuntu 24.04.3 LTS"
+    },
+    "python_version": "3.12.14"
+  },
+  "work_effective_cpu_upper_bound_cores": 8.0,
+  "work_effective_memory_capacity_upper_bound_bytes": 8589934592,
+  "runtime_available": {
+    "docker": false,
+    "ros2": false,
+    "gazebo": false
+  },
+  "verified_by_execution": [
+    "56 Python unit tests",
+    "repository structural audit",
+    "7 Git LFS objects pulled and fsck verified",
+    "candidate YAML generation",
+    "Bash syntax checks",
+    "inline Docker Python guard against local hydrated meshes"
+  ],
+  "not_executed": [
+    "Docker pull/build",
+    "C++ build",
+    "ROS/Gazebo launch",
+    "mission",
+    "real MCAP extraction",
+    "two-candidate orchestration/reset"
+  ],
+  "gate0": "NOT_YET_VERIFIED",
+  "gate1": "NOT_YET_VERIFIED",
+  "protected_source_sha256": {
+    "src/gps_truck_nav/truck_bringup/params/truck_nav2_params.yaml": "722169c640ac8a37c10ca1097ff212366bac7ae58ac2f596608bfc7a9454eef7",
+    "src/gps_truck_nav/truck_bringup/params/dual_ekf_navsat_params.yaml": "e73041ad33abff6f61b7d834910922d6af9936c234453bdbeedfac8c77a8f2d7",
+    "src/gps_truck_nav/truck_bringup/models/arocs_truck/model.sdf": "b8f8fc8b20a129694eed58bfd439c770e112a70fcf0e6da37bd9595f7e7ca8f2",
+    "src/gps_truck_nav/truck_bringup/urdf/arocs_truck.urdf": "863a35defbc79b75debb4e2650a874730c1bbd6dfd64c4b2a10f763778b7e3a1"
+  },
+  "candidate_yaml_sha256": {
+    "candidate_a.yaml": "722169c640ac8a37c10ca1097ff212366bac7ae58ac2f596608bfc7a9454eef7",
+    "candidate_b.yaml": "759774b9a7e1533dc628a60eb5955efbc496b1c0186aebfe70eb803cf28f989a"
+  },
+  "lfs_payload_bytes": 277750112
+}

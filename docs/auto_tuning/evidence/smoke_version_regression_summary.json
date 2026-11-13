@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "date_local": "2026-10-29",
+  "parent_commit": "6af48f240acfa5463e88049c97a95f1f7973663a",
+  "host_observation_source": "User report from ipt-sim-01; no direct host execution by agent",
+  "reported_prior_result": {
+    "image_built": true,
+    "gazebo_version": "11.10.2",
+    "version_query_returncode": 255,
+    "smoke_status": "IMAGE_SMOKE_FAILED",
+    "cleanup_completed": true
+  },
+  "upstream_sources": [
+    {
+      "path": "gazebo/Server.cc",
+      "repository": "gazebosim/gazebo-classic",
+      "ref": "gazebo11_11.10.2",
+      "blob_sha": "c92971f34122988fe3bda8469244a351c48990a7",
+      "finding": "Version option prints header and returns false from ParseArgs."
+    },
+    {
+      "path": "gazebo/server_main.cc",
+      "repository": "gazebosim/gazebo-classic",
+      "ref": "gazebo11_11.10.2",
+      "blob_sha": "a0855e5b2aeadd521bb65ee71cd7ffdc89cac1d1",
+      "finding": "False ParseArgs returns -1 before server Run."
+    }
+  ],
+  "correction": "Only gzserver --version may accept 255 with an exact unambiguous Classic 11 banner and no timeout. Preserve original returncode/output and process_succeeded=false; never assert simulator runtime validity.",
+  "other_commands_require_exit_zero": true,
+  "offline_tests_passed": 84,
+  "new_smoke_regression_tests": 13,
+  "fixtures": "Artificial subprocess results; no Docker/ROS/Gazebo launched",
+  "syntax_checks": "PASS",
+  "runbook_bash_blocks_checked": 6,
+  "canonical_inputs_unchanged": true,
+  "dockerfile_unchanged": true,
+  "local_runtime_revalidation": "PENDING_ON_IPT_SIM_01",
+  "bringup_executed_by_agent": false,
+  "mission_sent": false,
+  "gate0": "NOT_YET_VERIFIED",
+  "gate1": "NOT_YET_VERIFIED",
+  "file_sha256": {
+    "tools/auto_tuning/validate_image.sh": "856a7d7fe7f24f6acdba9cd64bad55017a6180a8b42f3719569489a0a32d7122",
+    "tests/test_validate_image.py": "ef9dbc9233640bde1c8b9595f7859324d3b0b064afc01b30c44a5ed1e537c416",
+    "docs/auto_tuning/local_setup_runbook.md": "697d708644d83de92a266641a51b01c622a91bf351d4fc39c44dc6cd611ffc69",
+    "docs/auto_tuning/evidence/smoke_version_regression_tests.log": "45031ed77d163d7d3bb8ec16e5dc2ca142189c5297e836d931bd9941599474e6",
+    "docs/auto_tuning/evidence/smoke_version_regression_checks.log": "2ce1177e71bdab023894f9bab118a47150b9d80a31bd8014f7f4453b07e486fa"
+  }
+}

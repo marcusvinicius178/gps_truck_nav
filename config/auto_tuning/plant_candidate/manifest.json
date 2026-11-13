@@ -1,0 +1,701 @@
+{
+  "schema_version": 1,
+  "profile_id": "arocs_classic_rear_axle_candidate_v1",
+  "source_commit": "d17fcecb51178eb566d4572f92644098652bd5dd",
+  "status": "STATIC_CANDIDATE_PREPARED",
+  "scope": "PROSPECTIVE_PLANT_DIAGNOSTIC_ONLY",
+  "profiles": {
+    "candidate20kmh": {
+      "file": "navigation/candidate20kmh.yaml",
+      "sha256": "5214257a2f19c215d9b590efcdd03349d48614ee2825f42e9f250d6f952b9179",
+      "policy_file": "policies/candidate20kmh_shadow.json",
+      "policy_sha256": "6ffbd886514ca6ebece67c2ca8b99e16a9757f08222a50d72b0dca9f38221c47",
+      "requested_test_speed_kmh": 20,
+      "forward_speed_cap_m_s": 5.555555555555555,
+      "reverse_speed_cap_m_s": 0.0,
+      "yaw_rate_cap_rad_s": 0.4,
+      "radius_at_speed_and_yaw_caps_m": 13.888888888888888,
+      "changes": [
+        {
+          "yaml_path": [
+            "bt_navigator",
+            "ros__parameters",
+            "robot_base_frame"
+          ],
+          "before": "base_link",
+          "after": "rear_axle_nav"
+        },
+        {
+          "yaml_path": [
+            "local_costmap",
+            "local_costmap",
+            "ros__parameters",
+            "robot_base_frame"
+          ],
+          "before": "base_footprint",
+          "after": "rear_axle_nav"
+        },
+        {
+          "yaml_path": [
+            "local_costmap",
+            "local_costmap",
+            "ros__parameters",
+            "footprint"
+          ],
+          "before": "[[-4.8025, -1.739], [4.8025, -1.739], [4.8025, 1.739], [-4.8025, 1.739]]",
+          "after": "[[-1.3005, -1.739], [8.3045, -1.739], [8.3045, 1.739], [-1.3005, 1.739]]"
+        },
+        {
+          "yaml_path": [
+            "global_costmap",
+            "global_costmap",
+            "ros__parameters",
+            "robot_base_frame"
+          ],
+          "before": "base_footprint",
+          "after": "rear_axle_nav"
+        },
+        {
+          "yaml_path": [
+            "global_costmap",
+            "global_costmap",
+            "ros__parameters",
+            "footprint"
+          ],
+          "before": "[[-4.8025, -1.739], [4.8025, -1.739], [4.8025, 1.739], [-4.8025, 1.739]]",
+          "after": "[[-1.3005, -1.739], [8.3045, -1.739], [8.3045, 1.739], [-1.3005, 1.739]]"
+        },
+        {
+          "yaml_path": [
+            "planner_server",
+            "ros__parameters",
+            "GridBased",
+            "minimum_turning_radius"
+          ],
+          "before": 11.6,
+          "after": 13.1
+        },
+        {
+          "yaml_path": [
+            "planner_server",
+            "ros__parameters",
+            "GridBased",
+            "costmap",
+            "footprint"
+          ],
+          "before": "[[-4.8025, -1.739], [4.8025, -1.739], [4.8025, 1.739], [-4.8025, 1.739]]",
+          "after": "[[-1.3005, -1.739], [8.3045, -1.739], [8.3045, 1.739], [-1.3005, 1.739]]"
+        },
+        {
+          "yaml_path": [
+            "controller_server",
+            "ros__parameters",
+            "goal_checker_plugins",
+            "0"
+          ],
+          "before": "front_cabin_goal_checker",
+          "after": "general_goal_checker"
+        },
+        {
+          "yaml_path": [
+            "controller_server",
+            "ros__parameters",
+            "FollowPath",
+            "vx_max"
+          ],
+          "before": 25.0,
+          "after": 5.555555555555555
+        },
+        {
+          "yaml_path": [
+            "controller_server",
+            "ros__parameters",
+            "FollowPath",
+            "vx_min"
+          ],
+          "before": -2.25,
+          "after": 0.0
+        },
+        {
+          "yaml_path": [
+            "controller_server",
+            "ros__parameters",
+            "FollowPath",
+            "AckermannConstraints",
+            "min_turning_r"
+          ],
+          "before": 11.6,
+          "after": 13.1
+        },
+        {
+          "yaml_path": [
+            "behavior_server",
+            "ros__parameters",
+            "robot_base_frame"
+          ],
+          "before": "base_footprint",
+          "after": "rear_axle_nav"
+        },
+        {
+          "yaml_path": [
+            "velocity_smoother",
+            "ros__parameters",
+            "max_velocity",
+            "0"
+          ],
+          "before": 8.33,
+          "after": 5.555555555555555
+        },
+        {
+          "yaml_path": [
+            "velocity_smoother",
+            "ros__parameters",
+            "max_velocity",
+            "2"
+          ],
+          "before": 0.72,
+          "after": 0.4
+        },
+        {
+          "yaml_path": [
+            "velocity_smoother",
+            "ros__parameters",
+            "min_velocity",
+            "0"
+          ],
+          "before": -8.33,
+          "after": 0.0
+        },
+        {
+          "yaml_path": [
+            "velocity_smoother",
+            "ros__parameters",
+            "min_velocity",
+            "2"
+          ],
+          "before": -0.72,
+          "after": -0.4
+        }
+      ],
+      "expected_parameters": {
+        "/controller_server": {
+          "controller_frequency": 20.0,
+          "FollowPath.plugin": "nav2_mppi_controller::MPPIController",
+          "FollowPath.motion_model": "Ackermann",
+          "FollowPath.vx_max": 5.555555555555555,
+          "FollowPath.vx_min": 0.0,
+          "FollowPath.vy_max": 0.0,
+          "FollowPath.wz_max": 0.4,
+          "FollowPath.model_dt": 0.05,
+          "FollowPath.time_steps": 40,
+          "FollowPath.prune_distance": 15.0,
+          "FollowPath.AckermannConstraints.min_turning_r": 13.1,
+          "goal_checker_plugins": [
+            "general_goal_checker"
+          ],
+          "general_goal_checker.stateful": true,
+          "general_goal_checker.plugin": "nav2_controller::SimpleGoalChecker",
+          "general_goal_checker.xy_goal_tolerance": 1.0,
+          "general_goal_checker.yaw_goal_tolerance": 0.25
+        },
+        "/planner_server": {
+          "GridBased.plugin": "nav2_smac_planner/SmacPlannerHybrid",
+          "GridBased.motion_model_for_search": "DUBIN",
+          "GridBased.minimum_turning_radius": 13.1
+        },
+        "/velocity_smoother": {
+          "max_velocity": [
+            5.555555555555555,
+            0.0,
+            0.4
+          ],
+          "min_velocity": [
+            0.0,
+            0.0,
+            -0.4
+          ],
+          "max_accel": [
+            3.0,
+            0.0,
+            1.0
+          ],
+          "max_decel": [
+            -3.0,
+            0.0,
+            -1.0
+          ],
+          "scale_velocities": false,
+          "feedback": "OPEN_LOOP",
+          "smoothing_frequency": 20.0,
+          "velocity_timeout": 1.0
+        },
+        "/bt_navigator": {
+          "robot_base_frame": "rear_axle_nav"
+        },
+        "/behavior_server": {
+          "robot_base_frame": "rear_axle_nav"
+        },
+        "/local_costmap/local_costmap": {
+          "robot_base_frame": "rear_axle_nav",
+          "footprint": "[[-1.3005, -1.739], [8.3045, -1.739], [8.3045, 1.739], [-1.3005, 1.739]]"
+        },
+        "/global_costmap/global_costmap": {
+          "robot_base_frame": "rear_axle_nav",
+          "footprint": "[[-1.3005, -1.739], [8.3045, -1.739], [8.3045, 1.739], [-1.3005, 1.739]]"
+        }
+      },
+      "runtime_values_verified": false,
+      "actuation_authorized": false
+    },
+    "candidate25kmh": {
+      "file": "navigation/candidate25kmh.yaml",
+      "sha256": "439446f3cdc2bd8eeafef40c640f60e874f239467b798253d8db9d59a399f206",
+      "policy_file": "policies/candidate25kmh_shadow.json",
+      "policy_sha256": "fa785be07a41bc90aad5d0a3a6d93423e32318931aa48a367070919abdb8db5f",
+      "requested_test_speed_kmh": 25,
+      "forward_speed_cap_m_s": 6.944444444444445,
+      "reverse_speed_cap_m_s": 0.0,
+      "yaw_rate_cap_rad_s": 0.4,
+      "radius_at_speed_and_yaw_caps_m": 17.36111111111111,
+      "changes": [
+        {
+          "yaml_path": [
+            "bt_navigator",
+            "ros__parameters",
+            "robot_base_frame"
+          ],
+          "before": "base_link",
+          "after": "rear_axle_nav"
+        },
+        {
+          "yaml_path": [
+            "local_costmap",
+            "local_costmap",
+            "ros__parameters",
+            "robot_base_frame"
+          ],
+          "before": "base_footprint",
+          "after": "rear_axle_nav"
+        },
+        {
+          "yaml_path": [
+            "local_costmap",
+            "local_costmap",
+            "ros__parameters",
+            "footprint"
+          ],
+          "before": "[[-4.8025, -1.739], [4.8025, -1.739], [4.8025, 1.739], [-4.8025, 1.739]]",
+          "after": "[[-1.3005, -1.739], [8.3045, -1.739], [8.3045, 1.739], [-1.3005, 1.739]]"
+        },
+        {
+          "yaml_path": [
+            "global_costmap",
+            "global_costmap",
+            "ros__parameters",
+            "robot_base_frame"
+          ],
+          "before": "base_footprint",
+          "after": "rear_axle_nav"
+        },
+        {
+          "yaml_path": [
+            "global_costmap",
+            "global_costmap",
+            "ros__parameters",
+            "footprint"
+          ],
+          "before": "[[-4.8025, -1.739], [4.8025, -1.739], [4.8025, 1.739], [-4.8025, 1.739]]",
+          "after": "[[-1.3005, -1.739], [8.3045, -1.739], [8.3045, 1.739], [-1.3005, 1.739]]"
+        },
+        {
+          "yaml_path": [
+            "planner_server",
+            "ros__parameters",
+            "GridBased",
+            "minimum_turning_radius"
+          ],
+          "before": 11.6,
+          "after": 13.1
+        },
+        {
+          "yaml_path": [
+            "planner_server",
+            "ros__parameters",
+            "GridBased",
+            "costmap",
+            "footprint"
+          ],
+          "before": "[[-4.8025, -1.739], [4.8025, -1.739], [4.8025, 1.739], [-4.8025, 1.739]]",
+          "after": "[[-1.3005, -1.739], [8.3045, -1.739], [8.3045, 1.739], [-1.3005, 1.739]]"
+        },
+        {
+          "yaml_path": [
+            "controller_server",
+            "ros__parameters",
+            "goal_checker_plugins",
+            "0"
+          ],
+          "before": "front_cabin_goal_checker",
+          "after": "general_goal_checker"
+        },
+        {
+          "yaml_path": [
+            "controller_server",
+            "ros__parameters",
+            "FollowPath",
+            "vx_max"
+          ],
+          "before": 25.0,
+          "after": 6.944444444444445
+        },
+        {
+          "yaml_path": [
+            "controller_server",
+            "ros__parameters",
+            "FollowPath",
+            "vx_min"
+          ],
+          "before": -2.25,
+          "after": 0.0
+        },
+        {
+          "yaml_path": [
+            "controller_server",
+            "ros__parameters",
+            "FollowPath",
+            "AckermannConstraints",
+            "min_turning_r"
+          ],
+          "before": 11.6,
+          "after": 13.1
+        },
+        {
+          "yaml_path": [
+            "behavior_server",
+            "ros__parameters",
+            "robot_base_frame"
+          ],
+          "before": "base_footprint",
+          "after": "rear_axle_nav"
+        },
+        {
+          "yaml_path": [
+            "velocity_smoother",
+            "ros__parameters",
+            "max_velocity",
+            "0"
+          ],
+          "before": 8.33,
+          "after": 6.944444444444445
+        },
+        {
+          "yaml_path": [
+            "velocity_smoother",
+            "ros__parameters",
+            "max_velocity",
+            "2"
+          ],
+          "before": 0.72,
+          "after": 0.4
+        },
+        {
+          "yaml_path": [
+            "velocity_smoother",
+            "ros__parameters",
+            "min_velocity",
+            "0"
+          ],
+          "before": -8.33,
+          "after": 0.0
+        },
+        {
+          "yaml_path": [
+            "velocity_smoother",
+            "ros__parameters",
+            "min_velocity",
+            "2"
+          ],
+          "before": -0.72,
+          "after": -0.4
+        }
+      ],
+      "expected_parameters": {
+        "/controller_server": {
+          "controller_frequency": 20.0,
+          "FollowPath.plugin": "nav2_mppi_controller::MPPIController",
+          "FollowPath.motion_model": "Ackermann",
+          "FollowPath.vx_max": 6.944444444444445,
+          "FollowPath.vx_min": 0.0,
+          "FollowPath.vy_max": 0.0,
+          "FollowPath.wz_max": 0.4,
+          "FollowPath.model_dt": 0.05,
+          "FollowPath.time_steps": 40,
+          "FollowPath.prune_distance": 15.0,
+          "FollowPath.AckermannConstraints.min_turning_r": 13.1,
+          "goal_checker_plugins": [
+            "general_goal_checker"
+          ],
+          "general_goal_checker.stateful": true,
+          "general_goal_checker.plugin": "nav2_controller::SimpleGoalChecker",
+          "general_goal_checker.xy_goal_tolerance": 1.0,
+          "general_goal_checker.yaw_goal_tolerance": 0.25
+        },
+        "/planner_server": {
+          "GridBased.plugin": "nav2_smac_planner/SmacPlannerHybrid",
+          "GridBased.motion_model_for_search": "DUBIN",
+          "GridBased.minimum_turning_radius": 13.1
+        },
+        "/velocity_smoother": {
+          "max_velocity": [
+            6.944444444444445,
+            0.0,
+            0.4
+          ],
+          "min_velocity": [
+            0.0,
+            0.0,
+            -0.4
+          ],
+          "max_accel": [
+            3.0,
+            0.0,
+            1.0
+          ],
+          "max_decel": [
+            -3.0,
+            0.0,
+            -1.0
+          ],
+          "scale_velocities": false,
+          "feedback": "OPEN_LOOP",
+          "smoothing_frequency": 20.0,
+          "velocity_timeout": 1.0
+        },
+        "/bt_navigator": {
+          "robot_base_frame": "rear_axle_nav"
+        },
+        "/behavior_server": {
+          "robot_base_frame": "rear_axle_nav"
+        },
+        "/local_costmap/local_costmap": {
+          "robot_base_frame": "rear_axle_nav",
+          "footprint": "[[-1.3005, -1.739], [8.3045, -1.739], [8.3045, 1.739], [-1.3005, 1.739]]"
+        },
+        "/global_costmap/global_costmap": {
+          "robot_base_frame": "rear_axle_nav",
+          "footprint": "[[-1.3005, -1.739], [8.3045, -1.739], [8.3045, 1.739], [-1.3005, 1.739]]"
+        }
+      },
+      "runtime_values_verified": false,
+      "actuation_authorized": false
+    }
+  },
+  "source_sha256": {
+    "src/gps_truck_nav/truck_bringup/params/truck_nav2_params.yaml": "722169c640ac8a37c10ca1097ff212366bac7ae58ac2f596608bfc7a9454eef7",
+    "src/gps_truck_nav/truck_bringup/urdf/arocs_truck.urdf": "863a35defbc79b75debb4e2650a874730c1bbd6dfd64c4b2a10f763778b7e3a1",
+    "config/auto_tuning/models/arocs_truck_tf_sensors/model.sdf": "5a389dd2b5e9703c0f44c657d8b06662865209a9d40870ce06f76b063f1c7da4",
+    "config/auto_tuning/models/arocs_truck_tf_sensors/model.config": "2b08eaa807415bd1e813535f4a99a76db8253a2f1219a773dc7a315fdfb3a51d",
+    "config/auto_tuning/worlds/ctvi_tf_sensors.world": "9094bd4df7d7f7472ebc0ba3a2dd8910af4a9bcf3e5fa4a5bca225f7df089dab",
+    "config/auto_tuning/tf_sensor_model_variant.json": "6982f4314eece195de3cc318be07a2293ea249f2eace79a5ad96749eb12a53ba"
+  },
+  "canonical_sha256": {
+    "models/arocs_truck/model.sdf": "b8f8fc8b20a129694eed58bfd439c770e112a70fcf0e6da37bd9595f7e7ca8f2",
+    "models/arocs_truck/model.config": "2b08eaa807415bd1e813535f4a99a76db8253a2f1219a773dc7a315fdfb3a51d",
+    "worlds/ctvi.world": "f33f9c7ad7be1ec785edbff5e6229a22515ac9fdd84c019fd5c8c8661a86e61f",
+    "urdf/arocs_truck.urdf": "863a35defbc79b75debb4e2650a874730c1bbd6dfd64c4b2a10f763778b7e3a1"
+  },
+  "variant_sha256": {
+    "plant_candidate/models/arocs_truck_candidate/model.sdf": "90be9aab8a892d2cc3256d8c74fd81ac8b61c351375e854426ef11feb87e49b0",
+    "plant_candidate/models/arocs_truck_candidate/model.config": "2b08eaa807415bd1e813535f4a99a76db8253a2f1219a773dc7a315fdfb3a51d",
+    "plant_candidate/worlds/ctvi_plant_candidate.world": "6509a3d6e4c2e64abdbd0ca14aa60ef7488e18b186ef0d692fa1de19aea5bf1e",
+    "plant_candidate/urdf/arocs_truck_candidate.urdf": "c2389b29b8e758a816b2a6b0990de8e3a9b2f293ed4c992008b42114b4bc6cc6",
+    "plant_candidate/navigation/candidate20kmh.yaml": "5214257a2f19c215d9b590efcdd03349d48614ee2825f42e9f250d6f952b9179",
+    "plant_candidate/policies/candidate20kmh_shadow.json": "6ffbd886514ca6ebece67c2ca8b99e16a9757f08222a50d72b0dca9f38221c47",
+    "plant_candidate/navigation/candidate25kmh.yaml": "439446f3cdc2bd8eeafef40c640f60e874f239467b798253d8db9d59a399f206",
+    "plant_candidate/policies/candidate25kmh_shadow.json": "fa785be07a41bc90aad5d0a3a6d93423e32318931aa48a367070919abdb8db5f"
+  },
+  "model_name": "arocs_truck",
+  "mesh_uri_prefix": "model://arocs_truck/meshes/",
+  "expected_wheel_edges": [
+    {
+      "joint_name": "front_right_steer_joint",
+      "parent": "first_shaft_horizontal_shaft_link",
+      "child": "front_right_steering_link",
+      "expected_publisher": "robot_state_publisher"
+    },
+    {
+      "joint_name": "front_left_steer_joint",
+      "parent": "first_shaft_horizontal_shaft_link",
+      "child": "front_left_steering_link",
+      "expected_publisher": "robot_state_publisher"
+    },
+    {
+      "joint_name": "first_wheel_left_joint",
+      "parent": "front_left_steering_link",
+      "child": "first_wheel_left_link",
+      "expected_publisher": "robot_state_publisher"
+    },
+    {
+      "joint_name": "first_wheel_right_joint",
+      "parent": "front_right_steering_link",
+      "child": "first_wheel_right_link",
+      "expected_publisher": "robot_state_publisher"
+    },
+    {
+      "joint_name": "fourth_wheel_left_joint",
+      "parent": "fourth_shaft_horizontal_shaft_link",
+      "child": "fourth_wheel_left_link",
+      "expected_publisher": "robot_state_publisher"
+    },
+    {
+      "joint_name": "fourth_wheel_right_joint",
+      "parent": "fourth_shaft_horizontal_shaft_link",
+      "child": "fourth_wheel_right_link",
+      "expected_publisher": "robot_state_publisher"
+    }
+  ],
+  "joint_names": [
+    "front_right_steer_joint",
+    "front_left_steer_joint",
+    "first_wheel_left_joint",
+    "first_wheel_right_joint",
+    "fourth_wheel_left_joint",
+    "fourth_wheel_right_joint"
+  ],
+  "sensor_lever_arms": {
+    "gps_link": {
+      "sensor": "arocs_gps",
+      "parent": "base_footprint",
+      "translation_m": [
+        3.8205,
+        0.0,
+        3.062
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "imu_link": {
+      "sensor": "imu_sensor",
+      "parent": "base_footprint",
+      "translation_m": [
+        3.7205,
+        0.0,
+        2.595
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "model_file": "models/arocs_truck_candidate/model.sdf",
+  "world_file": "worlds/ctvi_plant_candidate.world",
+  "urdf_file": "urdf/arocs_truck_candidate.urdf",
+  "actuator_topic": "/actuation/steering_command",
+  "expected_actuator_publisher_count": 0,
+  "control_frame": "rear_axle_nav",
+  "navigation_reference": {
+    "frame": "rear_axle_nav",
+    "parent": "base_footprint",
+    "translation_m": [
+      -3.502,
+      0.0,
+      0.0
+    ],
+    "rotation_xyzw": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  },
+  "expected_control_frame_edge": {
+    "parent": "base_footprint",
+    "child": "rear_axle_nav",
+    "translation_m": [
+      -3.502,
+      0.0,
+      0.0
+    ],
+    "rpy_rad": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "publisher": "robot_state_publisher",
+    "semantics": "Ground-plane projection of selected rear axle; existing TF chain unchanged."
+  },
+  "geometry": {
+    "wheelbase_plugin_collision_m": 6.8165000733513414,
+    "front_track_plugin_collision_m": 2.5981201902242046,
+    "rear_left_collision_center_model_m": [
+      -3.502,
+      1.299,
+      0.536
+    ],
+    "rear_right_collision_center_model_m": [
+      -3.502,
+      -1.299,
+      0.536
+    ],
+    "rear_track_planar_m": 2.598,
+    "rear_right_lateral_offset_from_axle_m": -1.299,
+    "unchanged_joint_limits": {
+      "left": {
+        "joint": "front_left_steer_joint",
+        "child_link": "front_left_steering_link",
+        "lower_rad": -0.524,
+        "upper_rad": 0.524,
+        "axis_model": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "right": {
+        "joint": "front_right_steer_joint",
+        "child_link": "front_right_steering_link",
+        "lower_rad": -0.524,
+        "upper_rad": 0.524,
+        "axis_model": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      }
+    },
+    "static_virtual_steering_bound_rad": 0.4799568628770338,
+    "static_ideal_rear_axle_radius_bound_m": 13.094652363938684,
+    "candidate_radius_m": 13.1,
+    "candidate_plugin_max_steer_rad": 0.4797896546711007,
+    "radius_policy": "Round static ideal bound upward to next 0.01 m; a reproducible numerical envelope, not measured grip/dynamic margin.",
+    "base_to_control_frame_x_m": -3.502,
+    "right_rear_feedback_note": "Classic longitudinal PID measures rear-right wheel speed. Ideal rolling relation v_right=v_axle-omega*y_right requires validation; same drive torque is applied to both rear wheels."
+  },
+  "preserved": [
+    "Historical files and confirmed TF/sensor variant bytes",
+    "All model collision/visual geometry, masses, inertias, joint limits, PID gains and plugin max_speed=20",
+    "Existing odometry, joint_states, TF wheel authority and sensor frame corrections",
+    "Datum, spawn pose, contacts, physics, noise, covariance and all sensor lever arms",
+    "Same world-space footprint polygon under the translated rear-axle reference",
+    "DUBIN planner, Ackermann controller and all objective weights"
+  ],
+  "known_limits": [
+    "Static source equations do not prove physical vehicle fidelity, contact dynamics or loaded plugin geometry.",
+    "The right front wheel offset and fixed intermediate wheel collisions remain unchanged and require observable functional assessment.",
+    "Old GridBased.costmap.footprint is documentary; runtime global/local costmap footprints are authoritative.",
+    "Candidate goals refer to rear_axle_nav and select existing general_goal_checker; the historical front-cabin offset checker remains unchanged but inactive.",
+    "A source-level adapter and its own timer cannot stop a plant if the adapter process dies; independently supervised simulator termination remains required before motion.",
+    "Covariances, absolute localization and obstacle observability are not solved by changing the actuation reference."
+  ],
+  "runtime_verified": false,
+  "runtime_geometry_validated": false,
+  "motion_authorized": false,
+  "mission_ready": false,
+  "gate0": "NOT_YET_VERIFIED",
+  "gate1": "NOT_YET_VERIFIED"
+}

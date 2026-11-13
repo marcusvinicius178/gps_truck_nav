@@ -1,0 +1,139 @@
+# PROPOSED BUT NOT TESTED: isolated Gate 0 localization repair candidate.
+# Derived from canonical dual_ekf_navsat_params.yaml at
+# 19f38e535bebc8a03a6aeef75c29160e0524668b; not a historical benchmark configuration.
+# TF ownership: Gazebo Ackermann odom -> base_footprint; global EKF map -> odom.
+# Required launch option: publish_legacy_cloud_tf:=false (URDF owns base_link -> cloud).
+# No datum, geometry, noise, covariance, rate or other sensor settings were retuned.
+# Runtime checks must still verify TF authorities, GPS/IMU frames, fresh data and alignment.
+
+# For parameter descriptions, please refer to the template parameter files for each node.
+
+ekf_filter_node_odom:
+  ros__parameters:
+    frequency: 30.0
+    two_d_mode: true # Recommended to use 2d mode for nav2 in mostly planar environments
+    publish_acceleration: false
+    #print_diagnostics: true
+    debug: false
+    publish_tf: false # Gazebo Ackermann remains the sole odom -> base_footprint TF authority.
+
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint # the frame id used by the turtlebot's diff drive plugin
+    world_frame: odom # Local continuous estimate; no TF publication from this EKF.
+
+    odom0: /odom
+    odom0_config: [true, true, false,
+                  false, false, false,
+                  true,  false, false,
+                  false, false, false,
+                  false, false, false]
+    odom0_differential: false
+    odom0_nodelay: true
+    odom0_relative: false
+    odom0_queue_size: 10
+
+    imu0: /imu
+    imu0_config: [false, false, false,
+                  false, false,  true,
+                  false, false, false,
+                  false, false, true,
+                  false,  false,  false]
+    imu0_differential: false  # If using a real robot you might want to set this to true, since usually absolute measurements from real imu's are not very accurate
+    imu0_nodelay: true
+    imu0_relative: false
+    imu0_queue_size: 10
+    imu0_remove_gravitational_acceleration: true
+
+    use_control: false
+
+    process_noise_covariance: [1e-3, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    1e-3,  0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    1e-3,  0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.1,   0.0,    0.0,     0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.1,   0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.01,  0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.1,    0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.1,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.1,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.1,   0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.1,   0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.1,   0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.1,   0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.1,   0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.1]
+
+ekf_filter_node_map:
+  ros__parameters:
+    use_sim_time: true
+    sensor_timeout: 0.1
+    transform_time_offset: 0.0
+    transform_timeout: 0.0
+    frequency: 30.0
+    two_d_mode: false #true  # Recommended to use 2d mode for nav2 in mostly planar environments
+    #print_diagnostics: true
+    publish_acceleration: false
+    debug: false
+    publish_tf: true
+    reset_on_time_jump: true
+
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint # the frame id used by the turtlebot's diff drive plugin
+    world_frame: map
+
+    odom0: /odometry/local # = "fused odometry + Imu in previous node"
+    odom0_config: [false, false, false, # Position X, Y, Z
+                  true, true, true, # Orientation roll, pitch, yaw (only yaw is used)
+                  true,  true,  true, # Velocity X dot, Y dot, Z dot
+                  true, true, true, # Angular Velocity roll dot, pitch dot, yaw dot
+                  false, false, false] # Acceleration X double dot, Y double dot, Z double dot
+    odom0_queue_size: 10
+    odom0_nodelay: true
+    odom0_differential: false #imu # If using a real robot you might want to set this to true, since usually absolute measurements from real imu's are not very accurate
+    odom0_relative: false
+
+
+    odom1: /odometry/gps # Position-only output of navsat_transform.
+    odom1_config: [true, true, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, false]
+    odom1_queue_size: 10
+    odom1_nodelay: true
+    odom1_differential: false
+    odom1_relative: false
+
+
+    use_control: false
+
+    process_noise_covariance: [1.0,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    1.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    1e-3,   0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.1,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.1,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.01,   0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.1,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.1,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.1,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.1,    0.0,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.1,    0.0,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.1,    0.0,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.1,    0.0,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.1,    0.0,
+                              0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,     0.0,     0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.1]
+
+navsat_transform:
+  ros__parameters:
+    use_sim_time: true
+    frequency: 30.0
+    delay: 3.0
+    magnetic_declination_radians: 0.0 #0.266512
+    yaw_offset: 0.0 #2.035032145
+    zero_altitude: true
+    broadcast_utm_transform: true
+    publish_filtered_gps: true
+    use_odometry_yaw: false #true
+    wait_for_datum: true
+    datum: [-22.617921667, -47.502277333, 2.035032145] # pre-set datum if needed, [lat, lon, yaw]

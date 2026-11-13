@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "profile_id": "arocs_tf_sensor_frames_v1",
+  "source_commit": "978ab2328c6cb378d6eea016027192a6cf1dbadf",
+  "scope": "PROSPECTIVE_DIAGNOSTIC_ONLY",
+  "canonical_sha256": {
+    "models/arocs_truck/model.sdf": "b8f8fc8b20a129694eed58bfd439c770e112a70fcf0e6da37bd9595f7e7ca8f2",
+    "models/arocs_truck/model.config": "2b08eaa807415bd1e813535f4a99a76db8253a2f1219a773dc7a315fdfb3a51d",
+    "worlds/ctvi.world": "f33f9c7ad7be1ec785edbff5e6229a22515ac9fdd84c019fd5c8c8661a86e61f",
+    "urdf/arocs_truck.urdf": "863a35defbc79b75debb4e2650a874730c1bbd6dfd64c4b2a10f763778b7e3a1"
+  },
+  "variant_sha256": {
+    "models/arocs_truck_tf_sensors/model.sdf": "5a389dd2b5e9703c0f44c657d8b06662865209a9d40870ce06f76b063f1c7da4",
+    "models/arocs_truck_tf_sensors/model.config": "2b08eaa807415bd1e813535f4a99a76db8253a2f1219a773dc7a315fdfb3a51d",
+    "worlds/ctvi_tf_sensors.world": "9094bd4df7d7f7472ebc0ba3a2dd8910af4a9bcf3e5fa4a5bca225f7df089dab"
+  },
+  "allowed_sdf_changes": [
+    {
+      "element": "model/plugin[@name='ackermann_drive']/publish_wheel_tf",
+      "before": "1",
+      "after": "0"
+    },
+    {
+      "element": "model/link[@name='base_footprint']/sensor[@name='arocs_gps']/plugin[@name='gps_plugin']/frame_name",
+      "before": null,
+      "after": "gps_link"
+    },
+    {
+      "element": "model/link[@name='base_footprint']/sensor[@name='imu_sensor']/plugin[@name='imu_plugin']/frame_name",
+      "before": null,
+      "after": "imu_link"
+    }
+  ],
+  "allowed_world_change": {
+    "before": "model://arocs_truck",
+    "after": "model://arocs_truck_tf_sensors"
+  },
+  "model_name": "arocs_truck",
+  "mesh_uri_prefix": "model://arocs_truck/meshes/",
+  "expected_wheel_edges": [
+    {
+      "joint_name": "front_right_steer_joint",
+      "parent": "first_shaft_horizontal_shaft_link",
+      "child": "front_right_steering_link",
+      "expected_publisher": "robot_state_publisher"
+    },
+    {
+      "joint_name": "front_left_steer_joint",
+      "parent": "first_shaft_horizontal_shaft_link",
+      "child": "front_left_steering_link",
+      "expected_publisher": "robot_state_publisher"
+    },
+    {
+      "joint_name": "first_wheel_left_joint",
+      "parent": "front_left_steering_link",
+      "child": "first_wheel_left_link",
+      "expected_publisher": "robot_state_publisher"
+    },
+    {
+      "joint_name": "first_wheel_right_joint",
+      "parent": "front_right_steering_link",
+      "child": "first_wheel_right_link",
+      "expected_publisher": "robot_state_publisher"
+    },
+    {
+      "joint_name": "fourth_wheel_left_joint",
+      "parent": "fourth_shaft_horizontal_shaft_link",
+      "child": "fourth_wheel_left_link",
+      "expected_publisher": "robot_state_publisher"
+    },
+    {
+      "joint_name": "fourth_wheel_right_joint",
+      "parent": "fourth_shaft_horizontal_shaft_link",
+      "child": "fourth_wheel_right_link",
+      "expected_publisher": "robot_state_publisher"
+    }
+  ],
+  "joint_names": [
+    "front_right_steer_joint",
+    "front_left_steer_joint",
+    "first_wheel_left_joint",
+    "first_wheel_right_joint",
+    "fourth_wheel_left_joint",
+    "fourth_wheel_right_joint"
+  ],
+  "sensor_lever_arms": {
+    "gps_link": {
+      "sensor": "arocs_gps",
+      "parent": "base_footprint",
+      "translation_m": [
+        3.8205,
+        0.0,
+        3.062
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "imu_link": {
+      "sensor": "imu_sensor",
+      "parent": "base_footprint",
+      "translation_m": [
+        3.7205,
+        0.0,
+        2.595
+      ],
+      "rpy_rad": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "preserved": [
+    "publish_odom=1",
+    "publish_odom_tf=1",
+    "truck_joint_state plugin and all six joint names",
+    "SDF/URDF geometry, masses, inertias, joint limits and sensor poses",
+    "all noise, covariance, topic remaps, update rates and world datum/spawn settings"
+  ],
+  "runtime_verified": false,
+  "mission_ready": false,
+  "gate0": "NOT_YET_VERIFIED",
+  "gate1": "NOT_YET_VERIFIED"
+}

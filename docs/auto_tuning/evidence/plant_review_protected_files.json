@@ -1,0 +1,10 @@
+{
+  "src/gps_truck_nav/truck_bringup/params/truck_nav2_params.yaml": "722169c640ac8a37c10ca1097ff212366bac7ae58ac2f596608bfc7a9454eef7",
+  "src/gps_truck_nav/truck_bringup/urdf/arocs_truck.urdf": "863a35defbc79b75debb4e2650a874730c1bbd6dfd64c4b2a10f763778b7e3a1",
+  "config/auto_tuning/models/arocs_truck_tf_sensors/model.sdf": "5a389dd2b5e9703c0f44c657d8b06662865209a9d40870ce06f76b063f1c7da4",
+  "config/auto_tuning/models/arocs_truck_tf_sensors/model.config": "2b08eaa807415bd1e813535f4a99a76db8253a2f1219a773dc7a315fdfb3a51d",
+  "config/auto_tuning/worlds/ctvi_tf_sensors.world": "9094bd4df7d7f7472ebc0ba3a2dd8910af4a9bcf3e5fa4a5bca225f7df089dab",
+  "config/auto_tuning/tf_sensor_model_variant.json": "6982f4314eece195de3cc318be07a2293ea249f2eace79a5ad96749eb12a53ba",
+  "src/gps_truck_nav/truck_bringup/models/arocs_truck/model.sdf": "b8f8fc8b20a129694eed58bfd439c770e112a70fcf0e6da37bd9595f7e7ca8f2",
+  "src/gps_truck_nav/truck_bringup/params/dual_ekf_navsat_params.yaml": "e73041ad33abff6f61b7d834910922d6af9936c234453bdbeedfac8c77a8f2d7"
+}
