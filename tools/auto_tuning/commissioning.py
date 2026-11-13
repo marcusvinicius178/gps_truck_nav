@@ -25,9 +25,25 @@ import commissioning_supervision as safety
 from commissioning_source import protocol
 import local_phase_a as phase
 import visual_observer as visual
+import desktop_display
 
 
 MODEL = 'config/auto_tuning/plant_candidate/models/arocs_truck_candidate/model.sdf'
+
+
+def read_desktop_runtime(output, state):
+    """Owned live window evidence; desktop never depends on an Xvfb screenshot."""
+    record = json.loads((output / 'runtime_status.json').read_text())
+    age = time.time() - record.get('updated_at_unix', 0)
+    checked = record.get('window_checked_monotonic_s')
+    if (record.get('run_id') != state['run_id'] or record.get('gui_mode') != 'desktop'
+            or record.get('window_machine') != state['desktop']['machine']
+            or record.get('status') != 'OBSERVING' or record.get('gui_ready') is not True
+            or not 0 <= age < 5 or not isinstance(checked, (float, int))
+            or not 0 <= time.monotonic() - checked < 4
+            or not {'gazebo', 'rviz'} <= record.get('windows', {}).keys()):
+        raise ValueError('Owned desktop windows are not confirmed live')
+    return record
 
 
 def protocol_record():
@@ -89,6 +105,9 @@ def verify_preparation(record, source, image):
 
 
 def run(args):
+    gui_mode = getattr(args, 'gui_mode', 'xvfb')
+    if gui_mode not in ('xvfb', 'desktop') or (gui_mode == 'desktop' and args.operation != 'prepare'):
+        raise phase.PhaseError('Desktop is currently restricted to read-only preparation')
     repo, output = args.repo.resolve(), args.output_dir.absolute()
     if (output.exists() or output.is_symlink() or output.resolve().is_relative_to(repo)
             or any(c in str(output) for c in (',', '\r', '\n'))):
@@ -99,8 +118,11 @@ def run(args):
              'navigation_profile': 'candidate20kmh', 'trial': 'straight',
              'status': 'STARTING', 'fault_drill': getattr(args, 'fault_drill', 'none'),
              'duration_wall_s': args.duration, 'mission_ready': False,
+             'gui_mode': gui_mode,
              'gate0': 'NOT_YET_VERIFIED', 'gate1': 'NOT_YET_VERIFIED'}
     server = thread = None
+    desktop = None
+    display_cleanup = None
     operator_started, prompt_started = threading.Event(), False
     reason = 'DURATION_LIMIT_REACHED'
     ready_seen, drill_triggered, drill_time, publisher_count = False, False, None, None
@@ -142,9 +164,15 @@ def run(args):
             with (args.prepare_dir / 'authorization.used').open('x') as record:
                 record.write(json.dumps({'authorization_sha256': state['authorization_id'], 'output': str(output)}))
             safety.atomic_private(output / 'authorization.json', approval)
+        display_options = []
+        if gui_mode == 'desktop':
+            desktop = desktop_display.DesktopSession.start(output, state['run_id'], args.duration)
+            state['desktop'] = desktop.metadata
+            display_options = desktop.docker_options()
+            safety.atomic_private(output / 'display_access.json', desktop.metadata)
         safety.atomic_private(output / 'manifest.json', state)
         safety.atomic_private(output / 'host.lease', f'{time.monotonic():.9f}\n')
-        command = docker + phase.container_options(output, state['run_id'], 'commissioning-' + args.operation) + [
+        command = docker + phase.container_options(output, state['run_id'], 'commissioning-' + args.operation) + display_options + [
             '--label', 'nav2.phase_a.role=commissioning', image,
             'python3', '/opt/auto_tuning/tools/commissioning_session.py']
         runner.run('commissioning_create', command, capture=False)
@@ -166,6 +194,8 @@ def run(args):
                 reason = 'OPERATOR_CANCELLED'
                 break
             # This loop is independent of HTTP/rendering and ROS callbacks.
+            if desktop:
+                desktop.check_alive()
             safety.atomic_private(output / 'host.lease', f'{current:.9f}\n')
             if (output / 'guard_fault.json').is_file():
                 fault = json.loads((output / 'guard_fault.json').read_text())
@@ -207,14 +237,19 @@ def run(args):
                     raise phase.PhaseError('PREPARATION_CREATED_ACTUATOR_PUBLISHER')
                 if not gui_announced and (output / 'runtime_status.json').is_file():
                     try:
-                        visual.read_frame(output)
-                        token = uuid.uuid4().hex
-                        server = HTTPServer(('127.0.0.1', args.port),
-                                            visual.handler_for(output, token, args.port, capture_frames=3))
-                        thread = threading.Thread(target=server.serve_forever, daemon=True)
-                        thread.start()
-                        print(f'Observação: http://127.0.0.1:{args.port}/{token}/', flush=True)
-                        print('Ctrl-C encerra somente esta simulação. Fechar a aba não encerra o ensaio.', flush=True)
+                        if gui_mode == 'desktop':
+                            read_desktop_runtime(output, state)
+                            print('Gazebo e RViz disponíveis no desktop: use Alt-Tab e os controles de câmera.', flush=True)
+                            print('Somente observação. Ctrl-C encerra esta simulação; fechar uma janela provoca contenção.', flush=True)
+                        else:
+                            visual.read_frame(output)
+                            token = uuid.uuid4().hex
+                            server = HTTPServer(('127.0.0.1', args.port),
+                                                visual.handler_for(output, token, args.port, capture_frames=3))
+                            thread = threading.Thread(target=server.serve_forever, daemon=True)
+                            thread.start()
+                            print(f'Observação: http://127.0.0.1:{args.port}/{token}/', flush=True)
+                            print('Ctrl-C encerra somente esta simulação. Fechar a aba não encerra o ensaio.', flush=True)
                         gui_announced = True
                     except ValueError:
                         pass
@@ -262,6 +297,17 @@ def run(args):
         containment_delay = time.monotonic() - drill_time if drill_time else None
         if drill_triggered and containment_delay >= 3:
             failure = 'FAULT_CONTAINMENT_EXCEEDED_3_WALL_SECONDS'
+        # Revoke only this display credential, after immediate plant containment.
+        if desktop:
+            try:
+                display_cleanup = desktop.close()
+                safety.atomic_private(output / 'display_cleanup.json', display_cleanup)
+                if (display_cleanup.get('status') != 'DESKTOP_ACCESS_REVOKED'
+                        or display_cleanup.get('authorization_revoked') is not True
+                        or display_cleanup.get('credentials_removed') is not True):
+                    raise RuntimeError('Session display credential revocation/removal not confirmed')
+            except Exception as error:
+                failure = (failure + '; ' if failure else '') + 'DESKTOP_AUTH_CLEANUP_FAILED: ' + str(error)
         if args.operation == 'prepare' and not ready_seen and reason != 'OPERATOR_CANCELLED' and failure is None:
             failure = 'READ_ONLY_READINESS_NOT_OBSERVED'
         if args.operation == 'execute' and reason not in ('TRIAL_COMMANDS_COMPLETE_STANDSTILL_OBSERVED', 'OPERATOR_CANCELLED') and failure is None:
@@ -287,6 +333,7 @@ def run(args):
             'telemetry_finalization': telemetry_finalization,
             'normal_telemetry_confirmed': telemetry_finalization is not None,
             'actuator_publishers_created': publisher_count, 'containment': containment,
+            'display_cleanup': display_cleanup,
             'fault_drill_triggered': drill_triggered,
             'fault_drill_passed': bool(drill_triggered and not failure and ready_seen and publisher_count == 0
                 and ('HEARTBEAT' in reason)
@@ -295,7 +342,7 @@ def run(args):
             'physical_stop_verified': False, 'dynamic_validation_complete': False,
             'elapsed_wall_s': time.monotonic() - started}
         safety.atomic_private(output / 'commissioning_report.json', report)
-        if args.operation == 'prepare' and 'source' in state:
+        if args.operation == 'prepare' and gui_mode == 'xvfb' and 'source' in state:
             safety.atomic_private(output / 'authorization.template.json', {
                 'schema_version': 1, 'scope': 'SIMULATION_COMMISSIONING', 'run_id': state['run_id'],
                 'source_commit': state['source']['commit'], 'image_id': state['image_id'],
@@ -317,6 +364,7 @@ def main(argv=None):
         p.add_argument('--port', type=int, default=8765)
         p.add_argument('--duration', type=float, default=120 if name == 'prepare' else 60)
         if name == 'prepare':
+            p.add_argument('--gui-mode', choices=('xvfb', 'desktop'), default='xvfb')
             p.add_argument('--fault-drill', choices=('none', 'adapter', 'session'), default='none')
         else:
             for option in ('prepare-dir', 'watchdog-proof-dir', 'authorization'):

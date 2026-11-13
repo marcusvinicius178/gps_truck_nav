@@ -1,5 +1,9 @@
 # Descompasso entre `/clock`, `/odom` e `/joint_states` — validação sem movimento
 
+Continuação: o operador confirmou R1 nesta revisão; o próximo procedimento é
+[desktop interativo somente observação](desktop_read_only_validation.md).
+As instruções e evidências temporais abaixo ficam preservadas para rastreabilidade.
+
 Correção incremental sobre `dfdc528832e113768c13630d99d25572eecc0539`, na PR #2
 DRAFT. A demonstração visual está concluída. Esta entrega trata somente da
 avaliação temporal do adaptador e da prontidão da preparação. Não autoriza

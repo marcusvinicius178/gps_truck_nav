@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import subprocess
 import sys
@@ -21,11 +22,54 @@ from commissioning_source import private_directory
 import commissioning_supervision as safety
 import local_phase_a as phase
 import visual_observer_session as visual
+import desktop_windows
 
 
 EVIDENCE = Path('/evidence')
 TOOLS = Path('/opt/auto_tuning/tools')
 CONFIG = Path('/opt/auto_tuning/config')
+
+
+def gui_environment(manifest, inherited):
+    """Select an explicit display without changing ROS/DDS or Gazebo isolation."""
+    mode = manifest.get('gui_mode', 'xvfb')
+    if mode not in ('xvfb', 'desktop') or (mode == 'desktop' and manifest['mode'] != 'prepare'):
+        raise ValueError('Desktop is currently restricted to read-only preparation')
+    env = dict(inherited)
+    env.pop('WAYLAND_DISPLAY', None)
+    env.update(QT_QPA_PLATFORM='xcb', LIBGL_ALWAYS_SOFTWARE='1',
+               ROS_LOCALHOST_ONLY='1', ROS_DOMAIN_ID='71',
+               GAZEBO_MASTER_URI='http://127.0.0.1:11345')
+    if mode == 'desktop':
+        display = manifest.get('desktop', {}).get('display', '')
+        machine = manifest.get('desktop', {}).get('machine', '')
+        if (not re.fullmatch(r':[0-9]+(?:\.[0-9]+)?', display)
+                or not re.fullmatch(r'arocs-[0-9a-f]{12}', machine)
+                or env.get('XAUTHORITY') != '/run/nav2-desktop.Xauthority'
+                or env.get('DISPLAY') != display):
+            raise ValueError('Dedicated authenticated desktop display required')
+        env.update(DISPLAY=display, QT_X11_NO_MITSHM='1')
+    else:
+        env['DISPLAY'] = ':91'
+        env.pop('XAUTHORITY', None)
+    return env
+
+
+def prepare_rviz_config(gui_mode, source, destination):
+    """Session-only camera tool; no goal/initial-pose/interaction tool is added."""
+    if gui_mode == 'xvfb':
+        return source
+    if gui_mode != 'desktop':
+        raise ValueError('Unknown GUI mode')
+    import yaml
+    configuration = yaml.safe_load(source.read_text())
+    manager = configuration['Visualization Manager']
+    if manager.get('Tools') != []:
+        raise ValueError('Expected the reviewed observation config without command tools')
+    manager['Tools'] = [{'Class': 'rviz_default_plugins/MoveCamera'}]
+    with destination.open('x') as stream:
+        yaml.safe_dump(configuration, stream, sort_keys=False)
+    return destination
 
 
 def read_only_adapter_ready(record):
@@ -126,12 +170,14 @@ def main():
     bound = safety.EXECUTION_WALL_LIMIT if manifest['mode'] == 'execute' else safety.PREPARE_WALL_LIMIT
     if not 10 <= duration <= bound:
         raise ValueError('Session duration outside the reviewed wall bound')
-    os.environ.update(DISPLAY=':91', QT_QPA_PLATFORM='xcb', LIBGL_ALWAYS_SOFTWARE='1',
-                      ROS_LOCALHOST_ONLY='1', ROS_DOMAIN_ID='71',
-                      GAZEBO_MASTER_URI='http://127.0.0.1:11345')
+    gui_mode = manifest.get('gui_mode', 'xvfb')
+    selected_environment = gui_environment(manifest, os.environ)
+    os.environ.clear()
+    os.environ.update(selected_environment)
     processes, logs = {}, []
     interrupted = threading.Event()
     gui = {'gui_ready': False}
+    desktop_seen = False
     sequence, ready, code, reason = 0, False, 0, 'DURATION_LIMIT_REACHED'
     adapter_record = {}
     fault_component = 'session'
@@ -156,10 +202,16 @@ def main():
     def gui_worker():
         while not interrupted.wait(1):
             try:
-                windows = visual.arrange_windows_bounded()
-                gui.update(gui_ready={'gazebo', 'rviz'} <= windows.keys(), windows=windows)
+                if gui_mode == 'desktop':
+                    windows = desktop_windows.inspect_windows_bounded(
+                        os.environ['DISPLAY'], manifest['desktop']['machine'],
+                        {'gazebo': processes['gazebo_gui'].pid, 'rviz': processes['rviz_gui'].pid})
+                else:
+                    windows = visual.arrange_windows_bounded()
+                gui.update(gui_ready={'gazebo', 'rviz'} <= windows.keys(), windows=windows,
+                           checked_monotonic_s=time.monotonic(), error=None)
             except Exception as error:
-                gui.update(gui_ready=False, error=str(error))
+                gui.update(gui_ready=False, error=str(error), checked_monotonic_s=time.monotonic())
 
     try:
         from ament_index_python.packages import get_package_share_directory
@@ -178,16 +230,18 @@ def main():
         safety.atomic_private(EVIDENCE / 'presentation_manifest.json', {
             'model': presentation, 'visual_assets': assets, 'only_world_addition': addition,
             'physical_model_changed': False, 'navigation_profile': 'candidate20kmh'})
-        (EVIDENCE / 'framebuffer').mkdir()
-        start('xvfb', ['Xvfb', ':91', '-screen', '0', '2200x900x24', '-nolisten', 'tcp',
-                       '-fbdir', str(EVIDENCE / 'framebuffer')])
-        while not (EVIDENCE / 'framebuffer/Xvfb_screen0').is_file():
-            if interrupted.is_set() or time.monotonic() - started > 10 or processes['xvfb'].poll() is not None:
-                raise RuntimeError('Framebuffer startup failed')
-            if not safety.read_lease(EVIDENCE / 'host.lease'):
-                raise RuntimeError('HOST_LEASE_EXPIRED')
-            time.sleep(0.05)
-        visual.make_framebuffer_readable(EVIDENCE / 'framebuffer/Xvfb_screen0')
+        if gui_mode == 'xvfb':
+            (EVIDENCE / 'framebuffer').mkdir()
+            start('xvfb', ['Xvfb', ':91', '-screen', '0', '2200x900x24', '-nolisten', 'tcp',
+                           '-fbdir', str(EVIDENCE / 'framebuffer')])
+            while not (EVIDENCE / 'framebuffer/Xvfb_screen0').is_file():
+                if interrupted.is_set() or time.monotonic() - started > 10 or processes['xvfb'].poll() is not None:
+                    raise RuntimeError('Framebuffer startup failed')
+                if not safety.read_lease(EVIDENCE / 'host.lease'):
+                    raise RuntimeError('HOST_LEASE_EXPIRED')
+                time.sleep(0.05)
+            visual.make_framebuffer_readable(EVIDENCE / 'framebuffer/Xvfb_screen0')
+        rviz_config = prepare_rviz_config(gui_mode, CONFIG / 'observation.rviz', EVIDENCE / 'desktop_observation.rviz')
         start('bringup', ['ros2', 'launch', 'truck_bringup', 'gps_waypoint_follower.launch.py',
             'use_gzclient:=false', 'use_rviz:=false', 'use_mapviz:=false', 'use_gpu:=false',
             'use_xcb:=true', 'publish_legacy_cloud_tf:=false', 'use_ackermann_bt:=true',
@@ -195,7 +249,7 @@ def main():
             'localization_params_file:=/opt/auto_tuning/config/dual_ekf_navsat_gate0.yaml']
             + [item for item in selected if not item.startswith('world:=')])
         start('gazebo_gui', ['gzclient', '--verbose'])
-        start('rviz_gui', ['ros2', 'run', 'rviz2', 'rviz2', '-d', str(CONFIG / 'observation.rviz'),
+        start('rviz_gui', ['ros2', 'run', 'rviz2', 'rviz2', '-d', str(rviz_config),
                            '--ros-args', '-p', 'use_sim_time:=true'])
         threading.Thread(target=gui_worker, daemon=True).start()
         safety.atomic_private(EVIDENCE / 'supervisor.lease', f'{time.monotonic():.9f}\n')
@@ -240,9 +294,18 @@ def main():
             elif now > first_heartbeat_deadline:
                 raise RuntimeError('OBSERVER_HEARTBEAT_MISSING')
             fault_component = 'session'
+            gui_ready = gui['gui_ready']
+            if gui_mode == 'desktop':
+                checked = gui.get('checked_monotonic_s', float('-inf'))
+                gui_ready = gui_ready and 0 <= time.monotonic() - checked < 4
+                if desktop_seen and not gui_ready:
+                    raise RuntimeError('LIVE_DESKTOP_WINDOWS_LOST')
+                desktop_seen |= gui_ready
             if now - started >= duration:
                 if manifest['mode'] == 'prepare' and manifest.get('fault_drill', 'none') == 'none':
                     require_read_only_completion(adapter_record)
+                    if gui_mode == 'desktop' and not gui_ready:
+                        raise RuntimeError('DESKTOP_WINDOWS_NOT_CONFIRMED')
                 break
             operator_start = EVIDENCE / 'operator_start.json'
             start_authorized = False
@@ -280,17 +343,22 @@ def main():
                 elif now > source_deadline:
                     raise RuntimeError('SOURCE_HEARTBEAT_MISSING')
                 fault_component = 'session'
-            ready = bool(gui['gui_ready'] and telemetry_ready and read_only_adapter_ready(adapter_record))
+            ready = bool(gui_ready and telemetry_ready and read_only_adapter_ready(adapter_record))
             sequence += 1
             safety.atomic_private(EVIDENCE / 'guard_heartbeat.json', {
                 'run_id': manifest['run_id'], 'seq': sequence, 'monotonic_s': now,
                 'state': 'READY_READ_ONLY' if ready else 'SUPERVISING',
                 'pid': os.getpid(), 'adapter_pid': processes['adapter'].pid,
                 'ready': ready, 'adapter': adapter_record, 'telemetry_ready': telemetry_ready,
+                'gui_mode': gui_mode, 'gui_ready': gui_ready,
                 'mode': manifest['mode'], 'mission_ready': False})
             safety.atomic_private(EVIDENCE / 'runtime_status.json', {
-                'status': 'OBSERVING' if gui['gui_ready'] else 'WAITING_FOR_WINDOWS',
-                'updated_at_unix': time.time(), 'gui_ready': gui['gui_ready'],
+                'status': 'OBSERVING' if gui_ready else 'WAITING_FOR_WINDOWS',
+                'updated_at_unix': time.time(), 'gui_ready': gui_ready,
+                'run_id': manifest['run_id'], 'gui_mode': gui_mode,
+                'windows': gui.get('windows', {}), 'window_error': gui.get('error'),
+                'window_checked_monotonic_s': gui.get('checked_monotonic_s'),
+                'window_machine': manifest.get('desktop', {}).get('machine'),
                 'commissioning_mode': manifest['mode'], 'adapter_state': adapter_record.get('state'),
                 'mission_ready': False, 'gate0': 'NOT_YET_VERIFIED', 'gate1': 'NOT_YET_VERIFIED'})
             # Renew only after every independent guard check has completed.
@@ -321,6 +389,7 @@ def main():
             stream.close()
         safety.atomic_private(EVIDENCE / 'session_summary.json', {
             'schema_version': 1, 'run_id': manifest['run_id'], 'mode': manifest['mode'],
+            'gui_mode': gui_mode, 'desktop_windows_observed': desktop_seen,
             'reason': reason, 'read_only_ready_observed': ready,
             'telemetry_finalization': finalization,
             'bringup_launcher_terminated': processes.get('bringup') is not None and processes['bringup'].poll() is not None,
