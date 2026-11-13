@@ -1,5 +1,14 @@
 # Heavy-Duty Agricultural Truck Navigation
 
+
+> [!IMPORTANT]
+> **Arocs Lab — painel privado da tese (lembrete de uso).** Antes e depois de cada campanha ou ensaio ROS 2/Nav2/Gazebo, abra sua **cópia local do Arocs Lab** no navegador para consultar os marcos e registrar `trial_id`, cenário, parâmetros, commits/checkout, execução, métricas, logs, rosbags, gates e evidências. Utilize o painel também para comparar ensaios e preparar a apresentação dos resultados científicos.
+>
+> **Comparação experimental planejada (A/B/C/D):** **A** = sem Virtual Lanes, parâmetros manuais; **B** = sem Virtual Lanes, fine-tuning automático; **C** = com Virtual Lanes, parâmetros manuais; **D** = com Virtual Lanes, fine-tuning automático. Compare desempenho, tempo, segurança, conforto e custo computacional em condições controladas. **Planejado não significa executado nem validado.**
+>
+> **Proveniência e segurança:** diferencie sempre **publicado no Git**, **executado no checkout local** e **validado com evidências**. O Arocs Lab é um caderno **local/privado**, sem integração automática com o caminhão, ROS 2 ou GitHub; **não publique aqui o HTML, o backup JSON ou dados privados da tese**. O registro no site não autoriza testes nem comprova validação.
+
+
 Vehicle-specific ROS 2 Navigation2 integration used in the study:
 
 **“Heavy-Duty Agricultural Truck Navigation: Geometry-Dependent Planner–Controller Trade-offs in a Human-Referenced ROS 2 Navigation2 Benchmark.”**
