@@ -147,6 +147,7 @@ class CommissioningObserverTests(unittest.TestCase):
         result = self.matches[-1]['trajectory']
         self.assertAlmostEqual(result['position_error_m'], 0.)
         self.assertEqual(result['anchor_stamp_s'], 10.)
+        self.assertEqual(self.recorder.counts['trial_joint_request_trajectory_matched'], 1)
         self.assertEqual(result['reference_scope'], 'REQUESTED_REAR_AXLE_PATH_IN_LOCAL_ODOM_ANCHORED_AT_TRIAL_START')
         self.assertFalse(self.recorder.summary(.2)['dynamic_validation_complete'])
         with self.assertRaises(TelemetryError):

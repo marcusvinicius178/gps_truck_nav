@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "base_commit": "c9390c710769ef8eaadf7b2c1a67cdcdbd54bc66",
+  "scope": "R1_NORMAL_TELEMETRY_FINALIZATION_ONLY",
+  "status": "IMPLEMENTED_OFFLINE_VERIFIED_RUNTIME_PENDING",
+  "offline_unit_tests": {
+    "passed": 554,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "additional_tests": 22
+  },
+  "commissioning_tests": {
+    "passed": 125,
+    "failed": 0,
+    "errors": 0
+  },
+  "bash_runbook_blocks_syntax_checked": 4,
+  "protected_paths_unchanged": [
+    "config",
+    "src",
+    "docker",
+    "historical",
+    "tools/auto_tuning/commissioning_adapter",
+    "tools/auto_tuning/commissioning_source.py"
+  ],
+  "existing_supervision_functions_unchanged": true,
+  "operational_authorization_created": false,
+  "ros_or_docker_runtime_started": false,
+  "motion_executed": false,
+  "ipt_sim_01_new_image_validation": "PENDING",
+  "mission_ready": false,
+  "gate0": "NOT_YET_VERIFIED",
+  "gate1": "NOT_YET_VERIFIED",
+  "reviewed_files_sha256": {
+    "docs/auto_tuning/r1_telemetry_finalization.md": "b0d2a57adb1f7fcb7c9047805e3e22ff69b87ebfd84b4de4031c934347b84793",
+    "tests/test_commissioning_finalization.py": "04113503ce4bfee39226cc760f71da6d8e66b009a4dfa6727ecd4dd3f7c25ed5",
+    "tests/test_commissioning_r1_evidence.py": "2aef8fa651a326edac2a4729c5d97a98deb1d07dad46c6a80745ec0c76be6fa4",
+    "tools/auto_tuning/check_r1_evidence.py": "d6a15c77d3659198ddf3402f91cd776af38241b8ac5ebf433522934ffffa2218",
+    "docs/auto_tuning/dynamic_commissioning.md": "e44a210131aa2f33e2473dfe05c5a4b59dfcd8ff2ae8613b99f04cf789d023c9",
+    "tests/test_commissioning_host.py": "1b380da2b52be00e43ec5d2ba307d04fe7aceacae6ab1e9884259d4d33973397",
+    "tests/test_commissioning_observer.py": "8494fbd3eb1e254a1239319289510081002114bb1c825794c3e14aacdcd3c035",
+    "tools/auto_tuning/commissioning.py": "e53ae29278312f2b7374f70622d817bdabd7045be386a7fdbc175161ae0ef701",
+    "tools/auto_tuning/commissioning_observer.py": "e7f508b82ed26db97ac343594357b344a4c1cd3d4a742e19b6678b87c7eec02a",
+    "tools/auto_tuning/commissioning_session.py": "433ecc7a0bf81ea0c88b8508c7b60c55fe2063bdaf55812db17740abd92a713e",
+    "tools/auto_tuning/commissioning_supervision.py": "efd19a9ca9c1f242bfdf1b6ef39b332ecae50ec6b6d4a3973410b6c82067178b"
+  }
+}

@@ -105,6 +105,7 @@ def run(args):
     reason = 'DURATION_LIMIT_REACHED'
     ready_seen, drill_triggered, drill_time, publisher_count = False, False, None, None
     failure = None
+    telemetry_finalization = None
     started = time.monotonic()
     try:
         source = phase.source_snapshot(repo, runner)
@@ -184,6 +185,8 @@ def run(args):
                     failure = reason
                 elif args.operation == 'prepare' and reason != 'DURATION_LIMIT_REACHED':
                     failure = reason
+                if safety.normal_telemetry_required(state, reason):
+                    telemetry_finalization = safety.verify_telemetry_confirmation(summary, state, output)
                 break
             guard_file = output / 'guard_heartbeat.json'
             if guard_file.exists():
@@ -266,6 +269,10 @@ def run(args):
         if (args.operation == 'prepare' and state['fault_drill'] != 'none' and reason != 'OPERATOR_CANCELLED'
                 and failure is None and not (drill_triggered and ready_seen and publisher_count == 0 and 'HEARTBEAT' in reason)):
             failure = 'FAULT_DRILL_DID_NOT_PROVE_EXPECTED_CONTAINMENT'
+        if (reason != 'OPERATOR_CANCELLED' and failure is None
+                and ((args.operation == 'prepare' and state['fault_drill'] == 'none')
+                     or args.operation == 'execute') and telemetry_finalization is None):
+            failure = 'NORMAL_TELEMETRY_FINALIZATION_NOT_CONFIRMED'
         # Stop the simulator before waiting for any browser worker or log I/O.
         if server:
             server.shutdown()
@@ -277,6 +284,8 @@ def run(args):
                 pass
         report = {**state, 'status': 'FAILED' if failure else 'CANCELLED' if reason == 'OPERATOR_CANCELLED' else 'PREPARATION_COLLECTED' if args.operation == 'prepare' else 'TRIAL_COLLECTED',
             'reason': reason, 'error': failure, 'read_only_ready_observed': ready_seen,
+            'telemetry_finalization': telemetry_finalization,
+            'normal_telemetry_confirmed': telemetry_finalization is not None,
             'actuator_publishers_created': publisher_count, 'containment': containment,
             'fault_drill_triggered': drill_triggered,
             'fault_drill_passed': bool(drill_triggered and not failure and ready_seen and publisher_count == 0

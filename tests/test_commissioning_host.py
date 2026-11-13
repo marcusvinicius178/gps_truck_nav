@@ -43,9 +43,10 @@ class Clock:
 
 
 class FakeDocker:
-    def __init__(self, output, clock, *, publisher=False, fault_component=None):
+    def __init__(self, output, clock, *, publisher=False, fault_component=None, telemetry_case=None):
         self.output, self.clock, self.publisher = output, clock, publisher
         self.fault_component = fault_component
+        self.telemetry_case = telemetry_case
         self.calls = []
         self.info = None
 
@@ -67,8 +68,44 @@ class FakeDocker:
                 'ready': True, 'mode': state['mode'],
                 'adapter': {'publisher_created': self.publisher, 'state': 'READY_READ_ONLY'},
                 'pid': 10, 'adapter_pid': 11}))
-            self.clock.after_sleep = lambda: (self.output / 'session_summary.json').write_text(json.dumps({
-                'reason': 'DURATION_LIMIT_REACHED', 'mode': state['mode'], 'run_id': state['run_id']}))
+            def normal_end():
+                if self.telemetry_case == 'no_session_summary':
+                    return
+                observer = self.output / 'observer'
+                observer.mkdir()
+                telemetry = {'schema_version': 1, 'run_id': state['run_id'], 'trial': state['trial'],
+                    'status': 'TELEMETRY_COLLECTED', 'error': None, 'health_reasons': [],
+                    'counts': dict.fromkeys(('clock_received', 'odometry', 'joint_states',
+                                            'synchronized_records', 'joint_matched'), 10)}
+                if state['mode'] == 'execute':
+                    telemetry.update(trial_start_sim_s=10., anchor_stamp_s=10.,
+                        trajectory_status='MEASURED_RELATIVE_TO_REQUEST', maxima=dict.fromkeys(
+                            ('max_abs_cross_track_error_m', 'max_abs_position_error_m',
+                             'max_abs_heading_error_rad'), 0.))
+                    telemetry['counts'].update(trajectory_metrics=10, trial_synchronized_records=10,
+                                               trial_joint_request_trajectory_matched=10)
+                path = observer / 'telemetry_summary.json'
+                path.write_text(json.dumps(telemetry))
+                confirmation = host.safety.telemetry_confirmation(self.output, state, 0, False)
+                summary = {'reason': ('DURATION_LIMIT_REACHED' if state['mode'] == 'prepare'
+                    else 'TRIAL_COMMANDS_COMPLETE_STANDSTILL_OBSERVED'), 'mode': state['mode'],
+                    'run_id': state['run_id'], 'telemetry_finalization': confirmation}
+                if self.telemetry_case == 'missing_confirmation':
+                    summary.pop('telemetry_finalization')
+                elif self.telemetry_case == 'missing':
+                    path.unlink()
+                elif self.telemetry_case == 'corrupt':
+                    path.write_text('{')
+                elif self.telemetry_case == 'wrong_run':
+                    path.write_text(json.dumps({**telemetry, 'run_id': '9' * 32}))
+                elif self.telemetry_case == 'exit':
+                    confirmation['observer_returncode'] = 3
+                elif self.telemetry_case == 'timeout':
+                    confirmation['timed_out'] = True
+                elif self.telemetry_case == 'changed_after_confirmation':
+                    path.write_text(json.dumps({**telemetry, 'extra': 'changed'}))
+                (self.output / 'session_summary.json').write_text(json.dumps(summary))
+            self.clock.after_sleep = normal_end
         elif name == 'kill_owned_simulator':
             self.info['State'] = {'Running': False, 'Pid': 0}
         elif name == 'inject_read_only_process_stall':
@@ -113,9 +150,10 @@ class CommissioningHostTests(unittest.TestCase):
         values.update(changes)
         return argparse.Namespace(**values)
 
-    def run_host(self, args, *, publisher=False, fault_component=None):
+    def run_host(self, args, *, publisher=False, fault_component=None, telemetry_case=None):
         def runner(output):
-            result = FakeDocker(output, self.clock, publisher=publisher, fault_component=fault_component)
+            result = FakeDocker(output, self.clock, publisher=publisher, fault_component=fault_component,
+                                telemetry_case=telemetry_case)
             self.runners.append(result)
             return result
 
@@ -174,6 +212,22 @@ class CommissioningHostTests(unittest.TestCase):
         self.assertEqual(report['containment']['status'], 'OWNED_SIMULATOR_TERMINATED')
         self.assertFalse(report['fault_drill_passed'])
 
+    def test_normal_prepare_requires_independently_verified_telemetry(self):
+        for case in ('missing_confirmation', 'missing', 'corrupt', 'wrong_run', 'exit',
+                     'timeout', 'changed_after_confirmation', 'no_session_summary'):
+            with self.subTest(case=case):
+                code, report = self.run_host(self.args(output_dir=self.root / case), telemetry_case=case)
+                self.assertEqual(code, 2)
+                self.assertEqual(report['status'], 'FAILED')
+                self.assertFalse(report['normal_telemetry_confirmed'])
+                self.assertEqual(report['containment']['status'], 'OWNED_SIMULATOR_TERMINATED')
+
+    def test_normal_prepare_records_confirmation(self):
+        code, report = self.run_host(self.args())
+        self.assertEqual(code, 0)
+        self.assertTrue(report['normal_telemetry_confirmed'])
+        self.assertEqual(report['telemetry_finalization']['status'], 'VERIFIED')
+
     def test_mismatched_source_or_profile_blocks_before_container_creation(self):
         original = json.loads((self.probe / 'status.json').read_text())
         for number, change in enumerate(({'source': {'commit': 'other'}},
@@ -223,6 +277,7 @@ class CommissioningHostTests(unittest.TestCase):
         self.assertIn('SESSION_GUARD_HEARTBEAT_FAILED', report['reason'])
         self.assertLess(report['fault_to_host_containment_wall_s'], 3.)
         self.assertEqual(report['actuator_publishers_created'], 0)
+        self.assertFalse(report['normal_telemetry_confirmed'])
 
     def test_natural_end_is_not_a_successful_watchdog_proof(self):
         code, report = self.run_host(self.args(fault_drill='adapter'))
@@ -285,6 +340,8 @@ class CommissioningHostTests(unittest.TestCase):
         args = self.args(operation='execute', prepare_dir=prepare, watchdog_proof_dir=proof,
                          authorization=authorization)
         _, report = self.run_host(args)
+        self.assertEqual(report['status'], 'TRIAL_COLLECTED')
+        self.assertTrue(report['normal_telemetry_confirmed'])
         creates = [argv for runner in self.runners for name, argv, _ in runner.calls
                    if name == 'commissioning_create']
         self.assertEqual(len(creates), 1, report)

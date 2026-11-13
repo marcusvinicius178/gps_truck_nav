@@ -55,6 +55,51 @@ def adapter_arguments(manifest, model, *, evidence=EVIDENCE):
     return command, parameters
 
 
+def finalize_processes(processes, manifest, sequence, adapter_record, *, evidence=EVIDENCE):
+    """Kill the plant first, then allow at most two wall seconds for telemetry."""
+    # Immediately terminate the plant process group. Do not give a stale
+    # Gazebo target a graceful 20-second opportunity to keep driving.
+    for name in ('bringup', 'source', 'adapter', 'gazebo_gui', 'rviz_gui', 'xvfb'):
+        proc = processes.get(name)
+        if proc and proc.poll() is None:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    observer = processes.get('observer')
+    if observer and observer.poll() is None:
+        try:
+            os.killpg(observer.pid, signal.SIGINT)
+        except ProcessLookupError:
+            pass
+    # Normal completion may need a short telemetry flush. Keep the guard
+    # progressing while it supervises already-signalled processes; a hung
+    # finalizer still has a hard deadline. Faults are independently visible
+    # in guard_fault.json and can trigger immediate host containment.
+    finalization_deadline = time.monotonic() + 2
+    while any(proc.poll() is None for proc in processes.values()) and time.monotonic() < finalization_deadline:
+        sequence += 1
+        safety.atomic_private(evidence / 'guard_heartbeat.json', {
+            'run_id': manifest['run_id'], 'seq': sequence, 'monotonic_s': time.monotonic(),
+            'state': 'FINALIZING', 'pid': os.getpid(), 'ready': False,
+            'adapter': adapter_record,
+            'mode': manifest['mode'], 'mission_ready': False})
+        time.sleep(0.05)
+    observer_timed_out = observer is not None and observer.poll() is None
+    for proc in processes.values():
+        try:
+            proc.wait(timeout=0.01)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    return sequence, {
+        'observer_returncode': observer.poll() if observer is not None else None,
+        'timed_out': observer_timed_out,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--manifest', type=Path, default=EVIDENCE / 'manifest.json')
@@ -76,6 +121,7 @@ def main():
     interrupted = threading.Event()
     gui = {'gui_ready': False}
     sequence, ready, code, reason = 0, False, 0, 'DURATION_LIMIT_REACHED'
+    adapter_record = {}
     fault_component = 'session'
     started = time.monotonic()
 
@@ -247,47 +293,22 @@ def main():
             'independent_of_adapter': True})
     finally:
         interrupted.set()
-        # Immediately terminate the plant process group. Do not give a stale
-        # Gazebo target a graceful 20-second opportunity to keep driving.
-        for name in ('bringup', 'source', 'adapter', 'gazebo_gui', 'rviz_gui', 'xvfb'):
-            proc = processes.get(name)
-            if proc and proc.poll() is None:
-                try:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-        observer = processes.get('observer')
-        if observer and observer.poll() is None:
+        sequence, observer_exit = finalize_processes(
+            processes, manifest, sequence, adapter_record, evidence=EVIDENCE)
+        finalization = {'status': 'NOT_REQUIRED', **observer_exit}
+        if safety.normal_telemetry_required(manifest, reason):
             try:
-                os.killpg(observer.pid, signal.SIGINT)
-            except ProcessLookupError:
-                pass
-        # Normal completion may need a short telemetry flush. Keep the guard
-        # progressing while it supervises already-signalled processes; a hung
-        # finalizer still has a hard deadline. Faults are independently visible
-        # in guard_fault.json and can trigger immediate host containment.
-        finalization_deadline = time.monotonic() + 2
-        while any(proc.poll() is None for proc in processes.values()) and time.monotonic() < finalization_deadline:
-            sequence += 1
-            safety.atomic_private(EVIDENCE / 'guard_heartbeat.json', {
-                'run_id': manifest['run_id'], 'seq': sequence, 'monotonic_s': time.monotonic(),
-                'state': 'FINALIZING', 'pid': os.getpid(), 'ready': False,
-                'adapter': adapter_record if 'adapter_record' in locals() else {},
-                'mode': manifest['mode'], 'mission_ready': False})
-            time.sleep(0.05)
-        for proc in processes.values():
-            try:
-                proc.wait(timeout=0.01)
-            except subprocess.TimeoutExpired:
-                try:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
+                finalization = safety.telemetry_confirmation(EVIDENCE, manifest, **observer_exit)
+            except Exception as error:
+                code = 2
+                reason = f'TELEMETRY_FINALIZATION_FAILED: {type(error).__name__}: {error}'
+                finalization = {'status': 'FAILED', **observer_exit, 'error': reason}
         for stream in logs:
             stream.close()
         safety.atomic_private(EVIDENCE / 'session_summary.json', {
             'schema_version': 1, 'run_id': manifest['run_id'], 'mode': manifest['mode'],
             'reason': reason, 'read_only_ready_observed': ready,
+            'telemetry_finalization': finalization,
             'bringup_launcher_terminated': processes.get('bringup') is not None and processes['bringup'].poll() is not None,
             'containment_proof': 'Host must inspect owned container Running=false and Pid=0',
             'physical_stop_verified': False, 'dynamic_validation_complete': False,

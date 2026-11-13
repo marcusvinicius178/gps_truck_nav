@@ -259,6 +259,10 @@ class Telemetry:
                     for key in ('cross_track_error_m', 'position_error_m', 'heading_error_rad'):
                         self.maxima['max_abs_' + key] = max(self.maxima['max_abs_' + key], abs(result['trajectory'][key]))
             self.counts['synchronized_records'] += 1
+            if self.start_sim is not None and stamp >= self.start_sim:
+                self.counts['trial_synchronized_records'] += 1
+                if joint and reference and result['trajectory'] is not None:
+                    self.counts['trial_joint_request_trajectory_matched'] += 1
             if joint:
                 self.counts['joint_matched'] += 1
             if joint and reference:
@@ -372,7 +376,10 @@ def run(args):
             from sensor_msgs.msg import JointState
             from rosgraph_msgs.msg import Clock
             from rclpy.qos import qos_profile_sensor_data
-            rclpy.init(args=[])
+            from rclpy.signals import SignalHandlerOptions
+            # The supervisor requests a flush with SIGINT after killing the plant.
+            # Keep our handlers: ROS defaults would shut down the context first.
+            rclpy.init(args=[], signal_handler_options=SignalHandlerOptions.NO)
             initialized = True
             node = rclpy.create_node('phase_a_commissioning_observer')
             handles = attach_subscriptions(node, recorder,
@@ -403,11 +410,18 @@ def run(args):
                     next_heartbeat = now + 0.1
             if not rclpy.ok():
                 raise TelemetryError('ROS context stopped unexpectedly')
+            if not stop_requested:
+                raise TelemetryError('Observer duration expired without a requested stop')
         except BaseException as exception:
             error = f'{type(exception).__name__}: {exception}'
         finally:
             recorder.flush(force=True)
             summary = recorder.summary(time.monotonic())
+            invalid = {key: value for key, value in recorder.counts.items() if value and
+                       (key.endswith(('_invalid', '_invalid_stamp')) or
+                        key in ('clock_regressions', 'pending_odometry_dropped'))}
+            if invalid and error is None:
+                error = 'TelemetryError: Invalid telemetry recorded: ' + json.dumps(invalid, sort_keys=True)
             summary['error'] = error
             if error:
                 summary['status'] = 'TELEMETRY_INCOMPLETE'

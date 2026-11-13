@@ -1,5 +1,11 @@
 # Comissionamento dinâmico prospectivo do Arocs
 
+Para a correção R1 e a próxima validação exclusivamente sem movimento, seguir
+[R1 — finalização normal da telemetria](r1_telemetry_finalization.md).
+Ela exige confirmação do observer na conclusão normal, preservando os fault
+drills e a contenção existentes. O runtime da revisão R1 ainda precisa ser
+verificado no ipt-sim-01 antes de qualquer autorização posterior de movimento.
+
 Estado desta entrega: código e testes offline; **nenhum movimento executado**.
 O operador confirmou a demonstração visual de `12c6ff8` no ipt-sim-01: Arocs
 completo no Gazebo/RViz, CTVI e footprint. Esse marco está concluído. Esta revisão
